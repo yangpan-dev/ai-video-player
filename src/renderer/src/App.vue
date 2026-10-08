@@ -8,7 +8,8 @@ import type {
   SubtitleSegment,
   WhisperModelInfo
 } from '@shared/types'
-import { NLLB_LANG, PLAYABLE_EXT } from '@shared/types'
+import { NLLB_LANG } from '@shared/types'
+import { playbackMode, type PlaybackMode, type ConversionMode } from '@shared/media'
 import DropZone from './components/DropZone.vue'
 import VideoPlayer from './components/VideoPlayer.vue'
 import ControlPanel from './components/ControlPanel.vue'
@@ -33,15 +34,19 @@ const mode = ref<'stream' | 'batch'>('stream')
 const running = ref(false)
 const translating = ref(false)
 const downloading = ref<ModelProgress | null>(null)
+const probing = ref(false)
+const appliedMode = ref<PlaybackMode>('direct')
 const remuxing = ref(false)
 const transcoding = ref(false)
 const transcodePercent = ref(0)
+let transcodeDuration = 0
+let progressLog = ''
 
 // 播放进度（记住上次位置）
 const initialTime = ref(0)
 let currentVideoTime = 0
 let lastSavedTime = -1
-// 有已保存字幕时自动播放；无字幕则保持暂停（图标应为 ▶）
+// 进度和字幕就绪后自动播放。
 const shouldAutoplay = ref(false)
 // 精简模式：只显示视频 + 字幕，隐藏侧栏/控制面板/状态栏
 const minimalMode = ref(false)
@@ -72,11 +77,6 @@ let translateChain: Promise<void> = Promise.resolve()
 
 function mediaUrl(path: string): string {
   return 'media://f/' + encodeURIComponent(path)
-}
-
-function extOf(path: string): string {
-  const i = path.lastIndexOf('.')
-  return i >= 0 ? path.slice(i).toLowerCase() : ''
 }
 
 function resetResults(): void {
@@ -195,50 +195,47 @@ function saveCurrentProgress(): void {
 }
 
 /** 打开视频后：自动加入历史 + 播放列表，加载进度和上次保存的字幕 */
-async function afterVideoOpened(path: string): Promise<void> {
+let openSeq = 0
+
+async function afterVideoOpened(path: string, seq: number): Promise<void> {
   try {
-    library.value = await window.api.addToHistory(path, titleOf(path))
-    library.value = await window.api.addToPlaylist(path, titleOf(path))
-    initialTime.value = await window.api.getProgress(path)
-    currentVideoTime = 0
-    lastSavedTime = -1
-    const saved = await window.api.loadSavedSubtitles(path)
-    if (saved) {
-      segments.value = saved
-      statusMsg.value = '已加载上次保存的字幕，无需重新识别'
-    }
-    // 打开视频一律自动播放（含从播放列表/历史切换）
-    shouldAutoplay.value = true
-  } catch {
-    /* 忽略 */
+    const history = await window.api.addToHistory(path, titleOf(path))
+    if (seq !== openSeq) return
+    library.value = history
+    const playlist = await window.api.addToPlaylist(path, titleOf(path))
+    if (seq !== openSeq) return
+    library.value = playlist
+    const [time, saved] = await Promise.all([
+      window.api.getProgress(path), window.api.loadSavedSubtitles(path)
+    ])
+    if (seq !== openSeq) return
+    initialTime.value = time
+    if (saved) segments.value = saved
+  } finally {
+    if (seq === openSeq) shouldAutoplay.value = true
   }
 }
 
 function setVideoFromPath(path: string): void {
   saveCurrentProgress()
-  // 切换视频：若上一个视频仍在转换则取消（同一时刻只转一个文件）
   stopActiveConversion()
   shouldAutoplay.value = false
   initialTime.value = 0
-  const needsRemux = !PLAYABLE_EXT.includes(extOf(path))
-  video.value = { sourcePath: path, path, url: needsRemux ? '' : mediaUrl(path), needsRemux }
+  currentVideoTime = 0
+  lastSavedTime = -1
+  appliedMode.value = 'direct'
+  video.value = { sourcePath: path, path, url: '', needsRemux: true }
   resetResults()
-  void afterVideoOpened(path)
-  if (needsRemux) void autoConvert(path)
+  // 每次打开都检查实际流，MP4 也可能需要修复音频或转码。
+  void afterVideoOpened(path, ++openSeq).catch(() => {})
+  void autoConvert(path)
 }
 
 function onDropped(file: File): void {
   try {
     const path = window.api.getPathForFile(file)
-    saveCurrentProgress()
-    stopActiveConversion()
-    shouldAutoplay.value = false
-    initialTime.value = 0
-    const needsRemux = !PLAYABLE_EXT.includes(extOf(path))
-    video.value = { sourcePath: path, path, url: needsRemux ? '' : URL.createObjectURL(file), needsRemux }
-    resetResults()
-    void afterVideoOpened(path)
-    if (needsRemux) void autoConvert(path)
+    if (!path) throw new Error('请拖入本地视频文件')
+    setVideoFromPath(path)
   } catch (e) {
     error.value = '无法读取文件路径：' + (e instanceof Error ? e.message : String(e))
   }
@@ -326,28 +323,12 @@ async function loadCacheStats(): Promise<void> {
 }
 
 async function clearTranscodeCache(): Promise<void> {
-  const current = video.value
-  const wasConverted = current ? current.path !== current.sourcePath : false
-  // 清理前确认，并提醒清理后非原生格式视频需重新转换
-  if (
-    !window.confirm(
-      '确定清理转换缓存吗？\n\n清理后，avi / mkv / ts 等非原生格式视频需要重新转换才能播放。'
-    )
-  ) {
-    return
-  }
+  if (probing.value || remuxing.value || transcoding.value) return
   try {
     cacheInfo.value = await window.api.clearCache()
-    if (wasConverted && current) {
-      // 当前视频正播放的是刚被删除的缓存文件，恢复到源文件并自动重新转换
-      statusMsg.value = '转换缓存已清理，正在重新转换当前视频…'
-      video.value = { sourcePath: current.sourcePath, path: current.sourcePath, url: '', needsRemux: true }
-      void autoConvert(current.sourcePath)
-    } else {
-      statusMsg.value = '转换缓存已清理'
-    }
-  } catch {
-    /* 忽略 */
+    statusMsg.value = '已清理转换缓存（正在播放的缓存文件会保留）'
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e)
   }
 }
 
@@ -511,143 +492,108 @@ async function exportSubtitles(): Promise<void> {
   }
 }
 
-// 转换序号：开始一次新转换/切换视频时自增，使之前仍在跑的转换结果作废
-// （保证同一时刻只转换一个文件，避免并发 ffmpeg 出错）
+// 打开、取消、重试都使旧异步结果作废。
 let convertSeq = 0
 
-function isCancelled(e: unknown): boolean {
-  return e instanceof Error && e.message.includes('已取消')
-}
-
-/** 停止当前转换（切换视频或手动取消时调用），并作废其结果 */
 function stopActiveConversion(): void {
   convertSeq++
-  if (remuxing.value || transcoding.value) {
-    void window.api.cancelConvert()
-  }
+  void window.api.cancelConvert()
+  probing.value = false
   remuxing.value = false
   transcoding.value = false
   transcodePercent.value = 0
+  transcodeDuration = 0
+  progressLog = ''
 }
 
-/** 手动取消当前的重封装/转码 */
 function cancelConversion(): void {
   stopActiveConversion()
-  statusMsg.value = '转换已取消'
+  statusMsg.value = '兼容处理已取消，可重试或打开其他视频'
 }
 
 async function remux(): Promise<void> {
-  if (!video.value) return
-  remuxing.value = true
-  error.value = null
-  const src = video.value.sourcePath
-  const seq = ++convertSeq
-  try {
-    const { outputPath, cached } = await window.api.remuxVideo(src)
-    if (seq === convertSeq && video.value?.sourcePath === src) {
-      video.value = { sourcePath: src, path: outputPath, url: mediaUrl(outputPath), needsRemux: false }
-      statusMsg.value = cached ? '已使用缓存的转换文件，无需重新转换' : '已无损转为 MP4'
-    }
-  } catch (e) {
-    if (seq === convertSeq) {
-      if (isCancelled(e)) statusMsg.value = '重封装已取消'
-      else error.value = e instanceof Error ? e.message : String(e)
-    }
-  } finally {
-    if (seq === convertSeq) remuxing.value = false
-  }
-}
-
-/** 转码为 H.264：支持所有 FFmpeg 能解码的格式（HEVC/10bit/AV1 等） */
-async function transcode(): Promise<void> {
-  if (!video.value) return
-  transcoding.value = true
-  transcodePercent.value = 0
-  error.value = null
-  const src = video.value.sourcePath
-  const seq = ++convertSeq
-  try {
-    const { outputPath, cached } = await window.api.transcodeVideo(src)
-    if (seq === convertSeq && video.value?.sourcePath === src) {
-      video.value = { sourcePath: src, path: outputPath, url: mediaUrl(outputPath), needsRemux: false }
-      statusMsg.value = cached ? '已使用缓存的转换文件，无需重新转换' : '已转码为 H.264 MP4'
-    }
-  } catch (e) {
-    if (seq === convertSeq) {
-      if (isCancelled(e)) statusMsg.value = '转码已取消'
-      else error.value = e instanceof Error ? e.message : String(e)
-    }
-  } finally {
-    if (seq === convertSeq) {
-      transcoding.value = false
-      transcodePercent.value = 0
-    }
-  }
-}
-
-// Chromium 内核能直接解码的视频编码（这些只需无损重封装）
-const PLAYABLE_CODECS = new Set(['h264', 'vp8', 'vp9', 'av1'])
-
-/**
- * 打开非原生格式（avi/mkv/ts/flv/wmv/m2ts 等）时自动转成可播放的 MP4：
- * 编码兼容则无损重封装（秒完成），否则转码为 H.264（较慢但通用）。
- * 同一时刻只转换一个文件：若上一个文件仍在转换，先取消它再转换当前的。
- */
-async function autoConvert(sourcePath: string): Promise<void> {
-  // 若上一个文件仍在转换，取消其 ffmpeg 进程（防止并发转换导致错误）
+  if (!video.value || probing.value || remuxing.value || transcoding.value) return
   stopActiveConversion()
-  const seq = convertSeq // 记录本次转换序号
+  await autoConvert(video.value.sourcePath, 'remux')
+}
 
-  let videoCodec = ''
+async function transcode(): Promise<void> {
+  if (!video.value || probing.value || remuxing.value || transcoding.value) return
+  stopActiveConversion()
+  await autoConvert(video.value.sourcePath, 'transcode')
+}
+
+async function autoConvert(sourcePath: string, force?: ConversionMode): Promise<void> {
+  const seq = convertSeq
+  const current = (): boolean => seq === convertSeq && video.value?.sourcePath === sourcePath
+  error.value = null
+  probing.value = true
+  statusMsg.value = '正在检查视频和音频编码…'
   try {
-    videoCodec = (await window.api.probeVideo(sourcePath)).videoCodec
-  } catch {
-    videoCodec = ''
-  }
-  if (seq !== convertSeq) return // 探测期间又切换/取消，作废
-
-  if (PLAYABLE_CODECS.has(videoCodec)) {
-    remuxing.value = true
-    statusMsg.value = '正在无损重封装为 MP4…'
-    try {
-      const { outputPath, cached } = await window.api.remuxVideo(sourcePath)
-      if (seq === convertSeq && video.value?.sourcePath === sourcePath) {
-        video.value = { sourcePath, path: outputPath, url: mediaUrl(outputPath), needsRemux: false }
-        statusMsg.value = cached ? '已使用缓存的转换文件，无需重新转换' : '已无损转为 MP4'
-      }
+    const probe = await window.api.probeVideo(sourcePath)
+    if (!current()) return
+    probing.value = false
+    transcodeDuration = probe.duration
+    let mode: PlaybackMode = force ?? playbackMode(sourcePath, probe)
+    if (mode === 'direct') {
+      appliedMode.value = mode
+      video.value = { sourcePath, path: sourcePath, url: mediaUrl(sourcePath), needsRemux: false }
+      statusMsg.value = ''
       return
-    } catch (e) {
-      if (seq !== convertSeq) return
-      if (isCancelled(e)) {
-        statusMsg.value = '重封装已取消'
+    }
+    if (video.value) video.value.needsRemux = true
+    if (mode === 'remux' || mode === 'audio') {
+      remuxing.value = true
+      statusMsg.value = mode === 'audio' ? '正在兼容音轨，保留原始视频画质…' : '正在快速整理视频封装，保留原始画质…'
+      try {
+        const result = await window.api.remuxVideo(sourcePath, mode === 'audio')
+        if (!current()) return
+        appliedMode.value = mode
+        video.value = { sourcePath, path: result.outputPath, url: mediaUrl(result.outputPath), needsRemux: false }
+        statusMsg.value = result.cached ? '已使用兼容播放缓存' : '兼容处理完成，视频画质未改变'
         return
+      } catch (e) {
+        if (!current() || (e instanceof Error && e.message.includes('已取消'))) return
+        mode = 'transcode'
+      } finally {
+        if (current()) remuxing.value = false
       }
-      statusMsg.value = '无损重封装失败，改用 H.264 转码…'
-    } finally {
-      if (seq === convertSeq) remuxing.value = false
     }
-  } else {
-    statusMsg.value = '检测到浏览器不支持的编码，正在转码为 H.264…（可点「取消」中止）'
-  }
-
-  transcoding.value = true
-  transcodePercent.value = 0
-  try {
-    const { outputPath, cached } = await window.api.transcodeVideo(sourcePath)
-    if (seq === convertSeq && video.value?.sourcePath === sourcePath) {
-      video.value = { sourcePath, path: outputPath, url: mediaUrl(outputPath), needsRemux: false }
-      statusMsg.value = cached ? '已使用缓存的转换文件，无需重新转换' : '已转码为 H.264 MP4'
-    }
+    transcoding.value = true
+    transcodePercent.value = 0
+    progressLog = ''
+    statusMsg.value = '正在转换为兼容视频，首次处理需要等待，完成后会自动播放…'
+    const result = await window.api.transcodeVideo(sourcePath)
+    if (!current()) return
+    appliedMode.value = 'transcode'
+    video.value = { sourcePath, path: result.outputPath, url: mediaUrl(result.outputPath), needsRemux: false }
+    statusMsg.value = result.cached ? '已使用兼容播放缓存' : '兼容处理完成'
   } catch (e) {
-    if (seq === convertSeq) {
-      if (isCancelled(e)) statusMsg.value = '转码已取消'
-      else error.value = e instanceof Error ? e.message : String(e)
+    if (current()) {
+      error.value = e instanceof Error ? e.message : String(e)
+      statusMsg.value = ''
     }
   } finally {
-    if (seq === convertSeq) {
+    if (current()) {
+      probing.value = false
+      remuxing.value = false
       transcoding.value = false
-      transcodePercent.value = 0
+      void loadCacheStats()
     }
+  }
+}
+
+function onPlayerError(event: { message: string; code: number; src: string | null }): void {
+  const loaded = video.value
+  if (!loaded || loaded.url !== event.src || probing.value || remuxing.value || transcoding.value) return
+  if ((event.code === 3 || event.code === 4) && appliedMode.value !== 'transcode') {
+    // 设备解码能力仍可能不同：最多升级一次，避免失败重试循环。
+    initialTime.value = currentVideoTime || initialTime.value
+    stopActiveConversion()
+    loaded.needsRemux = true
+    void autoConvert(loaded.sourcePath, 'transcode')
+  } else {
+    error.value = event.message + (appliedMode.value === 'transcode' ? '；兼容转换后仍无法播放，请检查文件是否损坏。' : '')
   }
 }
 
@@ -701,25 +647,24 @@ onMounted(() => {
       if (streamLogs.value.length > 200) streamLogs.value.shift()
     })
   )
-  // 转码进度：解析 ffmpeg stderr 的 Duration / time
-  let transcodeDuration = 0
   unsubscribers.push(
-    window.api.onTranscodeLog(({ data }) => {
-      const dm = /Duration:\s*(\d+):(\d+):(\d+\.?\d*)/.exec(data)
-      if (dm && transcodeDuration === 0) {
-        transcodeDuration = +dm[1] * 3600 + +dm[2] * 60 + +dm[3]
-      }
-      const tm = /time=\s*(\d+):(\d+):(\d+\.?\d*)/.exec(data)
+    window.api.onTranscodeLog(({ data, sourcePath }) => {
+      if (!transcoding.value || sourcePath !== video.value?.sourcePath) return
+      progressLog = (progressLog + data).slice(-4096)
+      const matches = [...progressLog.matchAll(/time=\s*(\d+):(\d+):(\d+\.\d+)/g)]
+      const tm = matches.at(-1)
       if (tm && transcodeDuration > 0) {
         const cur = +tm[1] * 3600 + +tm[2] * 60 + +tm[3]
-        transcodePercent.value = Math.min(100, Math.round((cur / transcodeDuration) * 100))
+        transcodePercent.value = Math.max(0, Math.min(99, Math.round((cur / transcodeDuration) * 100)))
       }
     })
   )
 })
 
 onBeforeUnmount(() => {
+  openSeq++
   saveCurrentProgress()
+  stopActiveConversion()
   window.removeEventListener('dragover', onWindowDragOver)
   window.removeEventListener('drop', onWindowDrop)
   window.removeEventListener('keydown', onAppKeydown)
@@ -729,7 +674,7 @@ onBeforeUnmount(() => {
 const hasSegments = computed(() => segments.value.length > 0)
 const busy = computed(
   () =>
-    running.value || translating.value || remuxing.value || transcoding.value || !!downloading.value
+    running.value || translating.value || probing.value || remuxing.value || transcoding.value || !!downloading.value
 )
 </script>
 
@@ -787,7 +732,7 @@ const busy = computed(
             </span>
             <button
               class="sidebar-cache-clear"
-              :disabled="!cacheInfo || cacheInfo.totalBytes === 0"
+              :disabled="probing || remuxing || transcoding || !cacheInfo || cacheInfo.totalBytes === 0"
               @click="clearTranscodeCache"
             >
               清理
@@ -824,6 +769,7 @@ const busy = computed(
       <main class="main">
         <VideoPlayer
           v-if="!video.needsRemux"
+          :key="video.url"
           :src="video.url"
           :segments="segments"
           :title="video.sourcePath.split('/').pop()"
@@ -832,24 +778,25 @@ const busy = computed(
           :minimal="minimalMode"
           @time="onPlayerTime"
           @toggle-minimal="toggleMinimal"
-          @error="error = $event"
+          @error="onPlayerError"
         />
         <div v-else class="remux-hint">
           <div class="remux-hint-icon">⚠️</div>
-          <p>该视频是 <b>{{ extOf(video.sourcePath).slice(1).toUpperCase() }}</b> 容器，浏览器内核无法直接播放。</p>
+          <p>{{ statusMsg || '此视频需要兼容处理后播放' }}</p>
           <p class="dim">
-            若内部是 H.264 编码：点「无损转 MP4」（秒完成）。<br />
-            若内部是 HEVC/H.265 / 10bit / AV1 等：点「转码为 H.264」（重编码，较慢但支持所有格式）。
+            自动检测视频与音轨，优先保留原始画质。<br />
+            需要转换的视频会保存在本地缓存中，再次打开可直接播放。
           </p>
+          <p v-if="error" class="dim">{{ error }}</p>
           <div class="remux-actions">
-            <button class="primary" :disabled="remuxing || transcoding" @click="remux">
+            <button class="primary" :disabled="probing || remuxing || transcoding" @click="remux">
               {{ remuxing ? '封装中…' : '无损转 MP4' }}
             </button>
-            <button :disabled="remuxing || transcoding" @click="transcode">
+            <button :disabled="probing || remuxing || transcoding" @click="transcode">
               {{ transcoding ? `转码中… ${transcodePercent}%` : '转码为 H.264' }}
             </button>
             <button
-              v-if="remuxing || transcoding"
+              v-if="probing || remuxing || transcoding"
               class="danger"
               title="取消当前转换"
               @click="cancelConversion"

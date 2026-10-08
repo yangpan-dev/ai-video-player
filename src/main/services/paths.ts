@@ -31,12 +31,11 @@ export function getTempDir(): string {
 }
 
 /**
- * 转码缓存目录：应用缓存目录下（macOS ~/Library/Caches/AIVideoPlayer/transcoded，
- * Windows %LOCALAPPDATA%\AIVideoPlayer\transcoded），不污染源视频目录。
+ * 转码缓存目录：Electron userData/cache/transcoded，不污染源视频目录。
+ * 使用官方支持的 userData 路径，避免 getPath('cache') 在部分版本中抛错。
  */
 export function getTranscodeCacheDir(): string {
-  // Electron 类型定义未收录 'cache'，但运行时是合法的路径名（macOS ~/Library/Caches、Windows %LOCALAPPDATA%）
-  const dir = join((app.getPath as (name: string) => string)('cache'), 'transcoded')
+  const dir = join(app.getPath('userData'), 'cache', 'transcoded')
   mkdirSync(dir, { recursive: true })
   return dir
 }

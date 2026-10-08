@@ -1,3 +1,4 @@
+import type { MediaProbe } from './media'
 import type {
   Library,
   LlmStatus,
@@ -17,6 +18,7 @@ import type {
 /** remux:log 事件负载 */
 export interface RemuxLog {
   data: string
+  sourcePath: string
   ext: string
 }
 
@@ -56,8 +58,8 @@ export interface Api {
   downloadLlmModel(): Promise<string>
   onLlmLog(cb: (line: string) => void): () => void
 
-  probeVideo(videoPath: string): Promise<{ videoCodec: string; audioCodec: string }>
-  remuxVideo(videoPath: string): Promise<{ outputPath: string; cached: boolean }>
+  probeVideo(videoPath: string): Promise<MediaProbe>
+  remuxVideo(videoPath: string, transcodeAudio?: boolean): Promise<{ outputPath: string; cached: boolean }>
   onRemuxLog(cb: (p: RemuxLog) => void): () => void
   transcodeVideo(videoPath: string): Promise<{ outputPath: string; cached: boolean }>
   onTranscodeLog(cb: (p: RemuxLog) => void): () => void

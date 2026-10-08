@@ -13,6 +13,8 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "test:media": "node --test tests/media.test.cjs",
+    "test:playback": "npm run build && node tests/run-playback.cjs",
     "build:win": "electron-vite build && electron-builder --win",
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:mac:adhoc": "electron-vite build && electron-builder --mac --dir && node scripts/adhoc-sign.mjs",

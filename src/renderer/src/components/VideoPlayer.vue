@@ -13,7 +13,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'error', message: string): void
+  (e: 'error', detail: { message: string; code: number; src: string | null }): void
   (e: 'time', t: number): void
   (e: 'toggleMinimal'): void
 }>()
@@ -108,20 +108,16 @@ function onPause(): void {
   isPlaying.value = false
 }
 function onError(): void {
-  const code = videoEl.value?.error?.code
-  const detail =
-    code === 3
-      ? '（编码不支持，常见于 HEVC/H.265 或 10bit 视频）'
-      : code === 4
-        ? '（封装/编码不被浏览器内核支持）'
-        : ''
-  emit('error', '无法播放该视频' + detail)
+  const code = videoEl.value?.error?.code ?? 0
+  if (!props.src || code === 1) return
+  const message = code === 2 ? '视频读取失败，请检查文件是否仍可访问' : '当前设备无法解码该视频或音轨'
+  emit('error', { message, code, src: props.src })
 }
 
 function togglePlay(): void {
   const v = videoEl.value
   if (!v) return
-  if (v.paused) void v.play()
+  if (v.paused) void v.play().catch(() => { if (v.error) onError() })
   else v.pause()
 }
 

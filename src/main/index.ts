@@ -1,9 +1,10 @@
-import { app, shell, BrowserWindow, protocol, net } from 'electron'
+import { app, shell, BrowserWindow, protocol } from 'electron'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { promises as fsp, existsSync, cpSync } from 'node:fs'
+import { existsSync, cpSync } from 'node:fs'
 import { registerIpc } from './ipc'
 import { ensureDirs } from './services/paths'
+import { mediaHandler } from './services/mediaProtocol'
+import { cancelConvert } from './services/playbackCache'
 
 /** 旧版本 productName 为 LocalAIVideoPlayer，改名后把已下载的模型迁移过来 */
 function migrateOldModels(): void {
@@ -31,67 +32,6 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
-function mimeOf(filePath: string): string {
-  const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
-  const map: Record<string, string> = {
-    mp4: 'video/mp4',
-    m4v: 'video/mp4',
-    mov: 'video/quicktime',
-    webm: 'video/webm',
-    ogv: 'video/ogg',
-    avi: 'video/x-msvideo',
-    mkv: 'video/x-matroska',
-    m4a: 'audio/mp4'
-  }
-  return map[ext] ?? 'application/octet-stream'
-}
-
-/** 处理 media://f/<encodeURIComponent(absPath)> 请求，支持 Range */
-async function mediaHandler(request: Request): Promise<Response> {
-  const url = new URL(request.url)
-  const filePath = decodeURIComponent(url.pathname.replace(/^\//, ''))
-  try {
-    const stat = await fsp.stat(filePath)
-    const size = stat.size
-    const range = request.headers.get('range')
-
-    if (range) {
-      const m = /bytes=(\d*)-(\d*)/.exec(range)
-      let start = 0
-      let end = size - 1
-      if (m) {
-        if (m[1]) start = parseInt(m[1], 10)
-        if (m[2]) end = parseInt(m[2], 10)
-      }
-      if (start > end || start >= size) {
-        return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })
-      }
-      end = Math.min(end, size - 1)
-      const chunkSize = end - start + 1
-      const buf = Buffer.alloc(chunkSize)
-      const fh = await fsp.open(filePath, 'r')
-      try {
-        await fh.read(buf, 0, chunkSize, start)
-      } finally {
-        await fh.close()
-      }
-      return new Response(new Uint8Array(buf), {
-        status: 206,
-        headers: {
-          'Content-Range': `bytes ${start}-${end}/${size}`,
-          'Accept-Ranges': 'bytes',
-          'Content-Length': String(chunkSize),
-          'Content-Type': mimeOf(filePath)
-        }
-      })
-    }
-
-    return net.fetch(pathToFileURL(filePath).toString())
-  } catch {
-    return new Response('Not found', { status: 404 })
-  }
-}
-
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
@@ -110,6 +50,7 @@ function createWindow(): void {
     }
   })
 
+  win.on('closed', cancelConvert)
   win.on('ready-to-show', () => win.show())
   win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -138,3 +79,5 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+
+app.on('before-quit', cancelConvert)

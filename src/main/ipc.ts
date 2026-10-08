@@ -1,7 +1,5 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
-import { extname, join } from 'node:path'
-import { existsSync, readFileSync, writeFileSync, statSync, readdirSync, unlinkSync } from 'node:fs'
-import { createHash } from 'node:crypto'
+import { extname } from 'node:path'
 import type { RunPipelineOptions, SaveSubtitlesPayload } from '@shared/types'
 import { runPipeline, cancelPipeline } from './services/pipeline'
 import { startStreaming, cancelStreaming } from './services/streaming'
@@ -20,114 +18,9 @@ import {
   saveProgress,
   getProgress
 } from './services/library'
-import { remuxToMp4, transcodeToH264, probeVideo, cancelConvert } from './services/ffmpeg'
-import { getTranscodeCacheDir } from './services/paths'
-
-const CACHE_LIMIT_BYTES = 20 * 1024 * 1024 * 1024 // 20GB
-
-/** 转换缓存：app 缓存目录下，文件名 = 源路径 SHA1 哈希（确定性、可复用、不污染源目录） */
-function cacheKey(videoPath: string): string {
-  return createHash('sha1').update(videoPath).digest('hex')
-}
-
-function convertedPath(videoPath: string): string {
-  return join(getTranscodeCacheDir(), `${cacheKey(videoPath)}.mp4`)
-}
-
-function sidecarPath(videoPath: string): string {
-  return join(getTranscodeCacheDir(), `${cacheKey(videoPath)}.json`)
-}
-
-/** 缓存是否仍有效（源文件大小 + 修改时间未变） */
-function hasValidCache(videoPath: string): boolean {
-  const out = convertedPath(videoPath)
-  const side = sidecarPath(videoPath)
-  if (!existsSync(out) || !existsSync(side)) return false
-  try {
-    const src = statSync(videoPath)
-    const meta = JSON.parse(readFileSync(side, 'utf8')) as { size?: number; mtimeMs?: number }
-    return meta.size === src.size && meta.mtimeMs === Math.floor(src.mtimeMs)
-  } catch {
-    return false
-  }
-}
-
-/** 转换成功后记录源文件指纹，并触发 LRU 清理 */
-function markCache(videoPath: string): void {
-  try {
-    const src = statSync(videoPath)
-    writeFileSync(
-      sidecarPath(videoPath),
-      JSON.stringify({ size: src.size, mtimeMs: Math.floor(src.mtimeMs) }),
-      'utf8'
-    )
-  } catch {
-    /* 忽略 */
-  }
-  enforceCacheLimit()
-}
-
-/** 超过大小上限时，按修改时间删除最旧的缓存文件（LRU） */
-function enforceCacheLimit(): void {
-  try {
-    const dir = getTranscodeCacheDir()
-    const files = readdirSync(dir).map((name) => {
-      const p = join(dir, name)
-      const st = statSync(p)
-      return { p, mtime: st.mtimeMs, size: st.size }
-    })
-    let total = files.reduce((s, f) => s + f.size, 0)
-    if (total <= CACHE_LIMIT_BYTES) return
-    files.sort((a, b) => a.mtime - b.mtime)
-    for (const f of files) {
-      if (total <= CACHE_LIMIT_BYTES) break
-      try {
-        unlinkSync(f.p)
-        total -= f.size
-      } catch {
-        /* 忽略单个删除失败 */
-      }
-    }
-  } catch {
-    /* 忽略 */
-  }
-}
-
-/** 转换缓存统计 */
-function cacheStats(): { fileCount: number; totalBytes: number; dir: string } {
-  const dir = getTranscodeCacheDir()
-  try {
-    const names = readdirSync(dir)
-    let totalBytes = 0
-    for (const name of names) {
-      try {
-        totalBytes += statSync(join(dir, name)).size
-      } catch {
-        /* 忽略 */
-      }
-    }
-    return { fileCount: names.length, totalBytes, dir }
-  } catch {
-    return { fileCount: 0, totalBytes: 0, dir }
-  }
-}
-
-/** 清空转换缓存 */
-function clearCache(): { fileCount: number; totalBytes: number; dir: string } {
-  const dir = getTranscodeCacheDir()
-  try {
-    for (const name of readdirSync(dir)) {
-      try {
-        unlinkSync(join(dir, name))
-      } catch {
-        /* 忽略 */
-      }
-    }
-  } catch {
-    /* 忽略 */
-  }
-  return cacheStats()
-}
+import { probeVideo } from './services/ffmpeg'
+import { cacheStats, clearCache, cancelConvert, prepareConversion, releasePlaybackCache } from './services/playbackCache'
+import { VIDEO_EXTENSIONS } from '../shared/media'
 
 export function registerIpc(): void {
   ipcMain.handle('pipeline:run', (event, videoPath: string, options: RunPipelineOptions) => {
@@ -190,7 +83,7 @@ export function registerIpc(): void {
       filters: [
         {
           name: '视频文件',
-          extensions: ['mp4', 'mkv', 'mov', 'webm', 'avi', 'm4v', 'ts', 'flv', 'wmv', 'm2ts', 'ogv', 'm4a']
+          extensions: VIDEO_EXTENSIONS
         },
         { name: '所有文件', extensions: ['*'] }
       ]
@@ -243,32 +136,18 @@ export function registerIpc(): void {
 
   ipcMain.handle('media:convert-cancel', () => {
     cancelConvert()
+    releasePlaybackCache()
   })
 
-  ipcMain.handle('media:remux', (event, videoPath: string) => {
-    const ext = extname(videoPath).toLowerCase()
-    const outPath = convertedPath(videoPath)
-    // 已有有效缓存则直接复用，不重复转换
-    if (hasValidCache(videoPath)) return { outputPath: outPath, cached: true }
-    const win = BrowserWindow.fromWebContents(event.sender)
-    return remuxToMp4(videoPath, outPath, ({ data }) => {
-      // ffmpeg 进度（copy 流通常很快），仅透传日志
-      win?.webContents.send('remux:log', { data, ext })
-    }).then(() => {
-      markCache(videoPath)
-      return { outputPath: outPath, cached: false }
+  ipcMain.handle('media:remux', (event, videoPath: string, transcodeAudio = false) => {
+    return prepareConversion(videoPath, transcodeAudio ? 'audio' : 'remux', ({ data }) => {
+      if (!event.sender.isDestroyed()) event.sender.send('remux:log', { data, sourcePath: videoPath, ext: extname(videoPath) })
     })
   })
 
   ipcMain.handle('media:transcode', (event, videoPath: string) => {
-    const outPath = convertedPath(videoPath)
-    if (hasValidCache(videoPath)) return { outputPath: outPath, cached: true }
-    const win = BrowserWindow.fromWebContents(event.sender)
-    return transcodeToH264(videoPath, outPath, ({ data }) => {
-      win?.webContents.send('transcode:log', { data })
-    }).then(() => {
-      markCache(videoPath)
-      return { outputPath: outPath, cached: false }
+    return prepareConversion(videoPath, 'transcode', ({ data }) => {
+      if (!event.sender.isDestroyed()) event.sender.send('transcode:log', { data, sourcePath: videoPath, ext: extname(videoPath) })
     })
   })
 
@@ -279,7 +158,7 @@ export function registerIpc(): void {
       title: '选择视频文件',
       properties: ['openFile'],
       filters: [
-        { name: '视频文件', extensions: ['mp4', 'mkv', 'mov', 'webm', 'avi', 'm4v', 'ts', 'flv'] },
+        { name: '视频文件', extensions: VIDEO_EXTENSIONS },
         { name: '所有文件', extensions: ['*'] }
       ]
     })

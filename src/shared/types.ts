@@ -121,6 +121,3 @@ export const NLLB_LANG: Record<string, string> = {
   zh: 'zho_Hans',
   ko: 'kor_Hang'
 }
-
-/** Chromium <video> 可直接播放的容器（其余如 mkv/avi 需要无损转 MP4） */
-export const PLAYABLE_EXT = ['.mp4', '.m4v', '.mov', '.webm', '.m4a', '.ogv']

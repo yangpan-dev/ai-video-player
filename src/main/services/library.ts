@@ -1,3 +1,4 @@
+import { VIDEO_EXTENSIONS } from '../../shared/media'
 import { app } from 'electron'
 import { existsSync, readFileSync, readdirSync, writeFileSync, type Dirent } from 'node:fs'
 import { basename, extname, join } from 'node:path'
@@ -98,10 +99,6 @@ export function getProgress(path: string): number {
   return lib.progress[path] ?? 0
 }
 
-const VIDEO_EXT = [
-  '.mp4', '.mkv', '.mov', '.webm', '.avi', '.m4v', '.ts', '.flv', '.wmv', '.m2ts', '.ogv', '.m4a'
-]
-
 /** 递归扫描文件夹（含子文件夹）里的视频文件 */
 export function scanVideoFiles(dir: string): string[] {
   const results: string[] = []
@@ -120,7 +117,7 @@ export function scanVideoFiles(dir: string): string[] {
         const name = e.name.toLowerCase()
         // 排除本应用的转换缓存（历史版本会生成 <原名>.aivplayer.mp4），避免污染播放列表
         if (name.endsWith('.aivplayer.mp4')) continue
-        if (VIDEO_EXT.includes(extname(name))) results.push(full)
+        if (VIDEO_EXTENSIONS.includes(extname(name).slice(1))) results.push(full)
       }
     }
   }
