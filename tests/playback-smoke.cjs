@@ -2,7 +2,7 @@
 // then MEDIA_TEST_MANIFEST=/tmp/... electron tests/playback-smoke.cjs
 const electron = require('electron')
 const { app, BrowserWindow, protocol } = electron
-const { readFileSync, mkdtempSync } = require('node:fs')
+const { readFileSync, mkdtempSync, writeFileSync } = require('node:fs')
 const { join, resolve } = require('node:path')
 const assert = require('node:assert/strict')
 const manifest = JSON.parse(readFileSync(process.env.MEDIA_TEST_MANIFEST, 'utf8'))
@@ -24,7 +24,7 @@ app.whenReady().then(async () => {
     protocol.handle('media', mediaHandler)
     registerIpc()
     for (const item of manifest.outputs) addToPlaylist(item.source, item.name)
-    win = new BrowserWindow({ show: false, webPreferences: { preload: resolve('out/preload/index.js'), sandbox: false, contextIsolation: true, nodeIntegration: false } })
+    win = new BrowserWindow({ width: 1280, height: 820, show: false, webPreferences: { preload: resolve('out/preload/index.js'), sandbox: false, contextIsolation: true, nodeIntegration: false } })
     await win.loadFile(resolve('out/renderer/index.html'))
     await delay(300)
     for (const item of manifest.outputs) {
@@ -94,6 +94,99 @@ app.whenReady().then(async () => {
     const source = await win.webContents.executeJavaScript(`document.querySelector('video')?.currentSrc`)
     assert.equal(source, 'media://f/' + encodeURIComponent(last.source))
     console.log('PASS rapid switching retains the newest source')
+
+    const select = async (source) => {
+      await win.webContents.executeJavaScript(`(() => {
+        [...document.querySelectorAll('.sidebar-item-title')].find(e => e.title === ${JSON.stringify(source)}).click();
+      })()`)
+      for (let n = 0; n < 100; n++) {
+        if (await win.webContents.executeJavaScript(`!!document.querySelector('video')?.readyState`)) break
+        await delay(50)
+      }
+      await win.webContents.executeJavaScript(`document.querySelector('video').pause()`)
+    }
+    // Import through the real preload/IPC/dialog path, with a deterministic file choice.
+    const subtitle = join(manifest.dir, 'imported.vtt')
+    writeFileSync(subtitle, 'WEBVTT\n\n00:00.000 --> 00:04.000\nImported line one\n第二行字幕')
+    electron.dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [subtitle] })
+    await win.webContents.executeJavaScript(`(() => {
+      [...document.querySelectorAll('button')].find(e => e.textContent.trim() === '导入字幕').click();
+    })()`)
+    await delay(200)
+    assert.match(await win.webContents.executeJavaScript(`document.querySelector('.subtitle-overlay')?.textContent`), /Imported line one\s+第二行字幕/)
+    console.log('PASS external subtitles import through the UI with all lines preserved')
+
+    await win.webContents.executeJavaScript(`(() => {
+      const volume = document.querySelector('input[title="音量"]'); volume.value = '0.35'; volume.dispatchEvent(new Event('input', { bubbles: true }));
+      [...document.querySelectorAll('.speed-grid button')].find(e => e.textContent.trim() === '1.5x').click();
+      document.querySelector('button[aria-label="切换静音"]').click();
+    })()`)
+    await select(manifest.outputs.find(o => o.name === 'av1.mp4').source)
+    let settings = await win.webContents.executeJavaScript(`(() => { const v = document.querySelector('video'); return { volume: v.volume, rate: v.playbackRate, muted: v.muted }; })()`)
+    assert.deepEqual(settings, { volume: 0.35, rate: 1.5, muted: true })
+    await win.loadFile(resolve('out/renderer/index.html'))
+    await delay(150)
+    await select(last.source)
+    settings = await win.webContents.executeJavaScript(`(() => { const v = document.querySelector('video'); return { volume: v.volume, rate: v.playbackRate, muted: v.muted }; })()`)
+    assert.deepEqual(settings, { volume: 0.35, rate: 1.5, muted: true })
+    console.log('PASS preferences survive source changes and renderer reload')
+
+    await win.webContents.executeJavaScript(`(() => {
+      const input = document.querySelector('input[aria-label="搜索视频"]'); input.value = 'surround'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`)
+    await delay(50)
+    assert.equal(await win.webContents.executeJavaScript(`document.querySelectorAll('.sidebar-item').length`), 1)
+    await win.webContents.executeJavaScript(`(() => {
+      const input = document.querySelector('input[aria-label="搜索视频"]'); input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`)
+    await delay(50)
+    const order = await win.webContents.executeJavaScript(`[...document.querySelectorAll('.sidebar-item-title')].map(e => e.title)`)
+    await select(order[0])
+    await win.webContents.executeJavaScript(`(() => {
+      const input = document.querySelector('.settings input[type="checkbox"]'); input.click();
+      document.querySelector('video').dispatchEvent(new Event('ended'));
+    })()`)
+    await delay(400)
+    assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.sidebar-item.active .sidebar-item-title')?.title`), order[1])
+    assert.equal(await win.webContents.executeJavaScript(`window.api.getProgress(${JSON.stringify(order[0])})`), 0)
+    await win.webContents.executeJavaScript(`document.querySelector('.settings input[type="checkbox"]').click()`)
+    console.log('PASS search, automatic next episode and completion progress reset')
+
+    // Artificially delay an old AI task and its translation across a source switch.
+    let oldRequest
+    let finishRecognition
+    let finishTranslation
+    electron.ipcMain.removeHandler('stream:start')
+    electron.ipcMain.handle('stream:start', (event, path, options) => {
+      oldRequest = options.requestId
+      for (let i = 0; i < 3; i++) event.sender.send('stream:segment', { requestId: oldRequest, data: { index: i, start: 0, end: 4, text: 'Old source ' + i } })
+      return new Promise(resolve => { finishRecognition = resolve })
+    })
+    electron.ipcMain.removeHandler('llm:translate')
+    electron.ipcMain.handle('llm:translate', () => new Promise(resolve => { finishTranslation = resolve }))
+    await win.webContents.executeJavaScript(`(() => {
+      [...document.querySelectorAll('button')].find(e => e.textContent.trim() === '开始实时识别').click();
+    })()`)
+    await delay(150)
+    assert.ok(oldRequest && finishTranslation)
+    await select(last.source)
+    await win.webContents.executeJavaScript(`(() => {
+      [...document.querySelectorAll('button')].find(e => e.textContent.trim() === '导入字幕').click();
+    })()`)
+    await delay(100)
+    win.webContents.send('stream:segment', { requestId: oldRequest, data: { index: 0, start: 0, end: 4, text: 'STALE' } })
+    finishTranslation(['STALE TRANSLATION', 'STALE TRANSLATION', 'STALE TRANSLATION'])
+    finishRecognition({ detectedLanguage: 'ja', segmentCount: 3 })
+    await delay(200)
+    const subtitleText = await win.webContents.executeJavaScript(`document.querySelector('.subtitle-overlay')?.textContent`)
+    assert.match(subtitleText, /Imported line one/)
+    assert.doesNotMatch(subtitleText, /STALE|Old source/)
+    console.log('PASS stale AI segments, translations and task completion cannot overwrite the new source')
+    if (process.env.UI_SCREENSHOT) {
+      await win.webContents.executeJavaScript(`document.querySelector('.player').dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))`)
+      await delay(300)
+      writeFileSync(process.env.UI_SCREENSHOT, (await win.webContents.capturePage()).toPNG())
+    }
     win.destroy()
     cache.cancelConvert()
     app.exit(0)
@@ -104,4 +197,3 @@ app.whenReady().then(async () => {
     app.exit(1)
   }
 })
-

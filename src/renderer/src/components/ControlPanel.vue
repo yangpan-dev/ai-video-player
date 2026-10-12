@@ -24,6 +24,7 @@ const emit = defineEmits<{
   (e: 'cancel'): void
   (e: 'export'): void
   (e: 'remux'): void
+  (e: 'import'): void
 }>()
 
 const LANG_LABEL: Record<string, string> = { ja: '日语', en: '英语', auto: '自动' }
@@ -96,10 +97,11 @@ const LANG_LABEL: Record<string, string> = { ja: '日语', en: '英语', auto: '
     </div>
 
     <div class="actions">
+      <button @click="emit('import')" title="导入 SRT / VTT 字幕，也可直接拖入文件">导入字幕</button>
       <button
         v-if="needsRemux"
         class="primary"
-        :disabled="running || translating"
+        :disabled="disabled || running || translating"
         @click="emit('remux')"
       >
         无损转 MP4 播放

@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Check and test
+        run: pnpm run typecheck && pnpm test
+
       - name: Build whisper.cpp (Windows)
         run: pnpm run build:whisper
 
@@ -33,7 +36,9 @@ jobs:
         run: pnpm run build:llama
 
       - name: Build Windows installer
-        run: pnpm run build:win
+        run: |
+          pnpm exec electron-vite build
+          pnpm exec electron-builder --win --x64 --publish never
 
       - uses: actions/upload-artifact@v4
         with:
@@ -61,6 +66,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Check and test
+        run: pnpm run typecheck && pnpm test
+
       - name: Build whisper.cpp (macOS)
         run: pnpm run build:whisper
 
@@ -68,7 +76,7 @@ jobs:
         run: pnpm run build:llama
 
       - name: Build macOS installer
-        run: pnpm run build:mac
+        run: pnpm run build:mac:release
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 

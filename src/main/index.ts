@@ -5,6 +5,16 @@ import { registerIpc } from './ipc'
 import { ensureDirs } from './services/paths'
 import { mediaHandler } from './services/mediaProtocol'
 import { cancelConvert } from './services/playbackCache'
+import { cancelPipeline } from './services/pipeline'
+import { cancelStreaming } from './services/streaming'
+import { stopLlmServer } from './services/llm'
+
+function stopBackgroundWork(): void {
+  cancelConvert()
+  cancelPipeline()
+  cancelStreaming()
+  stopLlmServer()
+}
 
 /** 旧版本 productName 为 LocalAIVideoPlayer，改名后把已下载的模型迁移过来 */
 function migrateOldModels(): void {
@@ -50,7 +60,7 @@ function createWindow(): void {
     }
   })
 
-  win.on('closed', cancelConvert)
+  win.on('closed', stopBackgroundWork)
   win.on('ready-to-show', () => win.show())
   win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -80,4 +90,4 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', cancelConvert)
+app.on('before-quit', stopBackgroundWork)

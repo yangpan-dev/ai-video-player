@@ -53,6 +53,7 @@ function translationVisible(): boolean {
 }
 .line {
   display: block;
+  white-space: pre-line;
   line-height: 1.45;
   margin: 3px 0;
   /* PotPlayer 风格的描边+阴影，保证任何画面下都可读 */

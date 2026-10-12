@@ -15,10 +15,10 @@ export interface StreamingCallbacks {
   onLog: (line: string) => void
 }
 
-let cancelled = false
+let activeCancel: (() => void) | undefined
 
 export function cancelStreaming(): void {
-  cancelled = true
+  activeCancel?.()
 }
 
 /** s16le 字节 -> Float32（-1..1），处理可能的字节对齐问题 */
@@ -65,7 +65,8 @@ export async function startStreaming(
   options: { model: string; language: string },
   cb: StreamingCallbacks
 ): Promise<{ detectedLanguage: string; segmentCount: number }> {
-  cancelled = false
+  cancelStreaming()
+  let cancelled = false
   const modelName = options.model ?? 'large-v3-turbo'
   if (!modelExists(modelName)) {
     throw new Error(`模型 ggml-${modelName}.bin 尚未下载。请先在界面点击「下载模型」。`)
@@ -75,6 +76,12 @@ export async function startStreaming(
 
   const server = new WhisperServer()
   let ffmpegProc: ReturnType<typeof spawn> | null = null
+  const cancel = (): void => {
+    cancelled = true
+    ffmpegProc?.kill()
+    server.stop()
+  }
+  activeCancel = cancel
 
   let index = 0
   let detectedLanguage = ''
@@ -150,6 +157,7 @@ export async function startStreaming(
     const transcribeWindow = async (samples: Float32Array, startSample: number): Promise<void> => {
       const wav = float32ToWav(samples)
       const result = await server.transcribe(wav, language)
+      if (cancelled) throw new Error('已取消')
       if (result.language && !detectedLanguage) {
         detectedLanguage = result.language
         emitProgress(lastPercent)
@@ -210,6 +218,7 @@ export async function startStreaming(
     })
     return { detectedLanguage, segmentCount }
   } finally {
+    if (activeCancel === cancel) activeCancel = undefined
     ffmpegProc?.kill()
     server.stop()
   }

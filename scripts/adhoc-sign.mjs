@@ -8,7 +8,7 @@
  * 默认：dist/mac-arm64/LocalAIVideoPlayer.app
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, readdirSync } from 'node:fs'
+import { closeSync, existsSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -28,6 +28,22 @@ if (!existsSync(appPath)) {
 
 console.log('ad-hoc 签名：', appPath)
 try {
+  // Resources 中的 FFmpeg 和 AI 二进制不一定被 codesign --deep 自动发现。
+  const signResources = (dir) => {
+    for (const entry of readdirSync(dir)) {
+      const path = join(dir, entry)
+      const stat = lstatSync(path)
+      if (stat.isSymbolicLink()) continue
+      if (stat.isDirectory()) { signResources(path); continue }
+      const fd = openSync(path, 'r')
+      const header = Buffer.alloc(4)
+      try { readSync(fd, header, 0, 4, 0) } finally { closeSync(fd) }
+      if (['cffaedfe', 'cefaedfe', 'cafebabe', 'bebafeca'].includes(header.toString('hex'))) {
+        execFileSync('codesign', ['--force', '--sign', '-', path], { stdio: 'pipe' })
+      }
+    }
+  }
+  signResources(join(appPath, 'Contents', 'Resources'))
   execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath], {
     stdio: 'inherit'
   })

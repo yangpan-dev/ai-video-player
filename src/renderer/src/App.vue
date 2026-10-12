@@ -13,6 +13,7 @@ import { playbackMode, type PlaybackMode, type ConversionMode } from '@shared/me
 import DropZone from './components/DropZone.vue'
 import VideoPlayer from './components/VideoPlayer.vue'
 import ControlPanel from './components/ControlPanel.vue'
+import { playerPreferences } from './lib/preferences'
 
 interface LoadedVideo {
   /** 原始文件路径：播放列表/历史/进度/字幕都以此为键 */
@@ -61,6 +62,66 @@ const llmLoading = ref(false)
 // 播放列表 / 历史记录
 const library = ref<Library>({ playlist: [], history: [], progress: {} })
 const sidebarTab = ref<'playlist' | 'history'>('playlist')
+const librarySearch = ref('')
+const sortByName = ref(false)
+const orderedPlaylist = computed(() => sortByName.value
+  ? [...library.value.playlist].sort((a, b) => a.title.localeCompare(b.title, 'zh-CN', { numeric: true }))
+  : library.value.playlist)
+const visibleEntries = computed(() => {
+  const entries = sidebarTab.value === 'playlist' ? orderedPlaylist.value : library.value.history
+  const query = librarySearch.value.trim().toLocaleLowerCase()
+  return query ? entries.filter((entry) => entry.title.toLocaleLowerCase().includes(query)) : entries
+})
+const playlistIndex = computed(() => orderedPlaylist.value.findIndex((entry) => entry.path === video.value?.sourcePath))
+const hasPrevious = computed(() => playlistIndex.value > 0)
+const hasNext = computed(() => playlistIndex.value >= 0 && playlistIndex.value < orderedPlaylist.value.length - 1)
+let activeSubtitleRequest = ''
+let subtitleRevision = 0
+
+function stopSubtitleWork(): void {
+  activeSubtitleRequest = ''
+  subtitleRevision++
+  void window.api.cancelPipeline()
+  void window.api.cancelStreaming()
+  running.value = false
+  translating.value = false
+  llmLoading.value = false
+  if (translateTimer) clearTimeout(translateTimer)
+  translateTimer = null
+  translateBuf = []
+}
+
+function playAdjacent(direction: -1 | 1): void {
+  if (direction < 0 ? !hasPrevious.value : !hasNext.value) return
+  setVideoFromPath(orderedPlaylist.value[playlistIndex.value + direction].path)
+}
+
+function onPlayerEnded(): void {
+  const source = video.value?.sourcePath
+  if (!source) return
+  currentVideoTime = 0
+  lastSavedTime = 0
+  void window.api.saveProgress(source, 0)
+  if (playerPreferences.autoNext) playAdjacent(1)
+}
+
+async function importSubtitles(path?: string): Promise<void> {
+  if (!video.value) { error.value = '请先打开视频，再导入字幕'; return }
+  const seq = openSeq
+  try {
+    const result = await window.api.importSubtitles(path)
+    if (!result || seq !== openSeq) return
+    stopSubtitleWork()
+    segments.value = result.segments
+    if (playerPreferences.subtitleMode === 'off' || playerPreferences.subtitleMode === 'translation') {
+      playerPreferences.subtitleMode = 'original'
+    }
+    error.value = null
+    statusMsg.value = `已导入 ${titleOf(result.path)}，共 ${result.segments.length} 条字幕`
+  } catch (e) {
+    if (seq === openSeq) error.value = e instanceof Error ? e.message : String(e)
+  }
+}
 
 // 转换缓存占用
 const cacheInfo = ref<{ fileCount: number; totalBytes: number; dir: string } | null>(null)
@@ -107,14 +168,17 @@ function srcLangCode(): string {
 async function llmTranslateBatch(
   lines: string[],
   srcLang: string,
-  context: string[] = []
+  context: string[] = [],
+  requestId = activeSubtitleRequest
 ): Promise<string[]> {
   const GROUP = 5
   const out: string[] = []
   let ctx = context
   for (let i = 0; i < lines.length; i += GROUP) {
+    if (!requestId || requestId !== activeSubtitleRequest) throw new Error('已取消')
     const group = lines.slice(i, i + GROUP)
     const t = await window.api.llmTranslate({ lines: group, srcLang, context: ctx })
+    if (requestId !== activeSubtitleRequest) throw new Error('已取消')
     out.push(...t)
     ctx = group
   }
@@ -137,10 +201,13 @@ function flushTranslate(): void {
   const idxs = batch.map((b) => b.idx)
   const texts = batch.map((b) => b.text)
   const ctx = lastContext
+  const requestId = activeSubtitleRequest
   translateChain = translateChain.then(async () => {
+    if (!requestId || requestId !== activeSubtitleRequest) return
     try {
       llmLoading.value = true
-      const translations = await llmTranslateBatch(texts, srcLangCode(), ctx)
+      const translations = await llmTranslateBatch(texts, srcLangCode(), ctx, requestId)
+      if (requestId !== activeSubtitleRequest) return
       translations.forEach((t, j) => {
         if (idxs[j] != null && segments.value[idxs[j]]) {
           segments.value[idxs[j]].translation = t
@@ -150,7 +217,7 @@ function flushTranslate(): void {
     } catch {
       /* 翻译失败不阻断 */
     } finally {
-      llmLoading.value = false
+      if (requestId === activeSubtitleRequest) llmLoading.value = false
     }
   })
 }
@@ -198,6 +265,7 @@ function saveCurrentProgress(): void {
 let openSeq = 0
 
 async function afterVideoOpened(path: string, seq: number): Promise<void> {
+  const revision = subtitleRevision
   try {
     const history = await window.api.addToHistory(path, titleOf(path))
     if (seq !== openSeq) return
@@ -210,7 +278,7 @@ async function afterVideoOpened(path: string, seq: number): Promise<void> {
     ])
     if (seq !== openSeq) return
     initialTime.value = time
-    if (saved) segments.value = saved
+    if (saved && revision === subtitleRevision) segments.value = saved
   } finally {
     if (seq === openSeq) shouldAutoplay.value = true
   }
@@ -218,6 +286,7 @@ async function afterVideoOpened(path: string, seq: number): Promise<void> {
 
 function setVideoFromPath(path: string): void {
   saveCurrentProgress()
+  stopSubtitleWork()
   stopActiveConversion()
   shouldAutoplay.value = false
   initialTime.value = 0
@@ -235,6 +304,7 @@ function onDropped(file: File): void {
   try {
     const path = window.api.getPathForFile(file)
     if (!path) throw new Error('请拖入本地视频文件')
+    if (/\.(srt|vtt)$/i.test(path)) { void importSubtitles(path); return }
     setVideoFromPath(path)
   } catch (e) {
     error.value = '无法读取文件路径：' + (e instanceof Error ? e.message : String(e))
@@ -335,6 +405,7 @@ async function clearTranscodeCache(): Promise<void> {
 /** 自动保存字幕（生成完成后调用，下次打开无需重新识别） */
 async function autoSaveSubtitles(): Promise<void> {
   if (!video.value || !segments.value.length) return
+  const requestId = activeSubtitleRequest
   try {
     await window.api.saveSubtitles({
       videoPath: video.value.sourcePath,
@@ -346,7 +417,7 @@ async function autoSaveSubtitles(): Promise<void> {
         translation: s.translation
       }))
     })
-    statusMsg.value = '字幕已自动保存'
+    if (requestId === activeSubtitleRequest) statusMsg.value = '字幕已自动保存'
   } catch {
     /* 忽略自动保存失败 */
   }
@@ -397,11 +468,14 @@ async function downloadLlm(): Promise<void> {
 async function runBatch(): Promise<void> {
   if (!video.value || video.value.needsRemux) return
   running.value = true
+  const requestId = activeSubtitleRequest
   try {
     const res = await window.api.runPipeline(video.value.sourcePath, {
+      requestId,
       model: selectedModel.value,
       language: 'auto'
     })
+    if (requestId !== activeSubtitleRequest) return
     detectedLanguage.value = res.detectedLanguage
     segments.value = res.segments
 
@@ -413,13 +487,16 @@ async function runBatch(): Promise<void> {
     translating.value = true
     llmLoading.value = true
     const texts = res.segments.map((s) => s.text)
-    const translations = await llmTranslateBatch(texts, srcLangCode())
+    const translations = await llmTranslateBatch(texts, srcLangCode(), [], requestId)
+    if (requestId !== activeSubtitleRequest) return
     segments.value = res.segments.map((s, i) => ({ ...s, translation: translations[i] }))
     await autoSaveSubtitles()
   } finally {
-    running.value = false
-    translating.value = false
-    llmLoading.value = false
+    if (requestId === activeSubtitleRequest) {
+      running.value = false
+      translating.value = false
+      llmLoading.value = false
+    }
   }
 }
 
@@ -427,26 +504,34 @@ async function runBatch(): Promise<void> {
 async function runStream(): Promise<void> {
   if (!video.value || video.value.needsRemux) return
   running.value = true
+  const requestId = activeSubtitleRequest
   try {
     const res = await window.api.startStreaming(video.value.sourcePath, {
+      requestId,
       model: selectedModel.value,
       language: 'auto'
     })
+    if (requestId !== activeSubtitleRequest) return
     detectedLanguage.value = res.detectedLanguage || detectedLanguage.value
     statusMsg.value =
       res.segmentCount === 0
         ? '未检测到语音：请确认视频有音轨；若是纯音乐/环境音或噪声很大，也可能切不出语音片段'
         : `识别完成，共 ${res.segmentCount} 句`
     // 等翻译队列全部完成，再自动保存（下次打开直接加载，无需重新识别）
+    flushTranslate()
     await translateChain
+    if (requestId !== activeSubtitleRequest) return
     if (segments.value.length > 0) await autoSaveSubtitles()
   } finally {
-    running.value = false
+    if (requestId === activeSubtitleRequest) running.value = false
   }
 }
 
 async function generate(): Promise<void> {
   if (!video.value || video.value.needsRemux) return
+  stopSubtitleWork()
+  const requestId = crypto.randomUUID()
+  activeSubtitleRequest = requestId
   error.value = null
   statusMsg.value = ''
   segments.value = []
@@ -461,6 +546,7 @@ async function generate(): Promise<void> {
     if (mode.value === 'stream') await runStream()
     else await runBatch()
   } catch (e) {
+    if (requestId !== activeSubtitleRequest) return
     const msg = e instanceof Error ? e.message : String(e)
     if (msg.includes('已取消')) statusMsg.value = '已取消'
     else error.value = msg
@@ -468,8 +554,8 @@ async function generate(): Promise<void> {
 }
 
 function cancel(): void {
-  if (mode.value === 'stream') void window.api.cancelStreaming()
-  else void window.api.cancelPipeline()
+  stopSubtitleWork()
+  statusMsg.value = '字幕任务已取消'
 }
 
 async function exportSubtitles(): Promise<void> {
@@ -602,6 +688,13 @@ function toggleMinimal(): void {
 }
 
 function onAppKeydown(e: KeyboardEvent): void {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') {
+    e.preventDefault()
+    void openDialog()
+    return
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return
+  if (e.target instanceof HTMLElement && (e.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(e.target.tagName))) return
   // Esc 退出精简模式（也支持 M 键快速切换）
   if (e.key === 'Escape' && minimalMode.value) {
     minimalMode.value = false
@@ -629,18 +722,27 @@ onMounted(() => {
   window.addEventListener('dragover', onWindowDragOver)
   window.addEventListener('drop', onWindowDrop)
   window.addEventListener('keydown', onAppKeydown)
-  unsubscribers.push(window.api.onPipelineProgress((p) => (pipelineState.value = p)))
+  window.addEventListener('beforeunload', saveCurrentProgress)
+  unsubscribers.push(window.api.onPipelineProgress(({ requestId, data }) => {
+    if (requestId === activeSubtitleRequest) pipelineState.value = data
+  }))
   unsubscribers.push(window.api.onModelProgress((p) => (downloading.value = p)))
-  unsubscribers.push(window.api.onStreamProgress((p) => (streamState.value = p)))
+  unsubscribers.push(window.api.onStreamProgress(({ requestId, data }) => {
+    if (requestId !== activeSubtitleRequest) return
+    streamState.value = data
+    if (data.detectedLanguage) detectedLanguage.value = data.detectedLanguage
+  }))
   unsubscribers.push(
-    window.api.onStreamSegment((seg) => {
+    window.api.onStreamSegment(({ requestId, data: seg }) => {
+      if (!requestId || requestId !== activeSubtitleRequest) return
       const idx = segments.value.length
       segments.value.push({ index: seg.index, start: seg.start, end: seg.end, text: seg.text })
       queueTranslate(idx, seg.text)
     })
   )
   unsubscribers.push(
-    window.api.onStreamLog((line) => {
+    window.api.onStreamLog(({ requestId, data: line }) => {
+      if (requestId !== activeSubtitleRequest) return
       const t = line.trim()
       if (!t) return
       streamLogs.value.push(t)
@@ -665,9 +767,11 @@ onBeforeUnmount(() => {
   openSeq++
   saveCurrentProgress()
   stopActiveConversion()
+  stopSubtitleWork()
   window.removeEventListener('dragover', onWindowDragOver)
   window.removeEventListener('drop', onWindowDrop)
   window.removeEventListener('keydown', onAppKeydown)
+  window.removeEventListener('beforeunload', saveCurrentProgress)
   unsubscribers.forEach((u) => u())
 })
 
@@ -699,14 +803,22 @@ const busy = computed(
             </button>
           </div>
 
+          <div class="library-tools">
+            <input v-model="librarySearch" type="search" placeholder="搜索视频…" aria-label="搜索视频" />
+            <label v-if="sidebarTab === 'playlist'" class="sort-option">
+              <input v-model="sortByName" type="checkbox" /> 按名称排序
+            </label>
+          </div>
           <div v-if="sidebarTab === 'playlist'" class="sidebar-body">
+            <button class="sidebar-action" title="打开视频（⌘ / Ctrl + O）" @click="openDialog">打开视频</button>
             <button class="sidebar-action" @click="addFiles">🎬 添加视频文件</button>
             <button class="sidebar-action" @click="addFolder">📁 添加文件夹（含子文件夹）</button>
             <button v-if="library.playlist.length" class="sidebar-action sidebar-clear" @click="clearPlaylistList">
               🗑 清空列表
             </button>
             <div v-if="!library.playlist.length" class="sidebar-empty">播放列表为空</div>
-            <div v-for="e in library.playlist" :key="e.path" class="sidebar-item" :class="{ active: isCurrentVideo(e.path) }">
+            <div v-if="librarySearch && !visibleEntries.length" class="sidebar-empty">没有匹配的视频</div>
+            <div v-for="e in visibleEntries" :key="e.path" class="sidebar-item" :class="{ active: isCurrentVideo(e.path) }">
               <div class="sidebar-item-title" :title="e.path" @click="playPath(e.path)">
                 {{ e.title }}
               </div>
@@ -719,7 +831,8 @@ const busy = computed(
               清空历史
             </button>
             <div v-if="!library.history.length" class="sidebar-empty">暂无历史</div>
-            <div v-for="e in library.history" :key="e.path" class="sidebar-item" :class="{ active: isCurrentVideo(e.path) }">
+            <div v-if="librarySearch && !visibleEntries.length" class="sidebar-empty">没有匹配的视频</div>
+            <div v-for="e in visibleEntries" :key="e.path" class="sidebar-item" :class="{ active: isCurrentVideo(e.path) }">
               <div class="sidebar-item-title" :title="e.path" @click="playPath(e.path)">
                 {{ e.title }}
               </div>
@@ -764,6 +877,7 @@ const busy = computed(
         @cancel="cancel"
         @export="exportSubtitles"
         @remux="remux"
+        @import="importSubtitles()"
       />
 
       <main class="main">
@@ -776,9 +890,15 @@ const busy = computed(
           :initial-time="initialTime"
           :autoplay="shouldAutoplay"
           :minimal="minimalMode"
+          :has-previous="hasPrevious"
+          :has-next="hasNext"
           @time="onPlayerTime"
           @toggle-minimal="toggleMinimal"
           @error="onPlayerError"
+          @previous="playAdjacent(-1)"
+          @next="playAdjacent(1)"
+          @ended="onPlayerEnded"
+          @pause="saveCurrentProgress"
         />
         <div v-else class="remux-hint">
           <div class="remux-hint-icon">⚠️</div>
@@ -859,6 +979,14 @@ const busy = computed(
 </template>
 
 <style scoped>
+.library-tools { padding: 10px 12px; display: grid; gap: 8px; }
+.library-tools > input {
+  min-width: 0; width: 100%; padding: 8px 10px; color: var(--text);
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; outline: none;
+}
+.library-tools > input:focus { border-color: var(--accent); }
+.sort-option { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); }
+.sort-option input { width: auto; }
 .app {
   height: 100%;
   display: flex;

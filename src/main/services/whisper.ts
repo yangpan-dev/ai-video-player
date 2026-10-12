@@ -34,7 +34,7 @@ function parseTimestampToMs(ts: string): number {
 export function transcribe(
   wavPath: string,
   modelPath: string,
-  options: { language?: string; onProgress?: (percent: number) => void } = {}
+  options: { language?: string; onProgress?: (percent: number) => void; signal?: AbortSignal } = {}
 ): Promise<TranscribeOutput> {
   const { language = 'auto', onProgress } = options
   return new Promise((resolve, reject) => {
@@ -57,7 +57,7 @@ export function transcribe(
       String(Math.max(4, os.cpus().length))
     ]
 
-    const proc = spawn(bin, args)
+    const proc = spawn(bin, args, { signal: options.signal, windowsHide: true })
     let stderrTail = ''
 
     proc.stderr.on('data', (d: Buffer) => {
@@ -69,14 +69,16 @@ export function transcribe(
     })
 
     proc.on('error', (err) => {
+      if (options.signal?.aborted) return // close 负责等待退出和清理输出。
       reject(
-        new Error(`无法启动 whisper 二进制：${err.message}（请运行 pnpm run build:whisper）`)
+        new Error(options.signal?.aborted ? '已取消' : `无法启动 whisper 二进制：${err.message}（请运行 pnpm run build:whisper）`)
       )
     })
 
     proc.on('close', (code) => {
       const jsonPath = outPrefix + '.json'
       try {
+        if (options.signal?.aborted) throw new Error('已取消')
         if (code !== 0) {
           reject(new Error(`whisper 识别失败（退出码 ${code}）\n${stderrTail.slice(-800)}`))
           return
@@ -101,8 +103,9 @@ export function transcribe(
           })
           .filter((s) => s.text.length > 0)
           .filter((s) => {
-            if (seen.has(s.text)) return false
-            seen.add(s.text)
+            const key = `${s.start}:${s.end}:${s.text}`
+            if (seen.has(key)) return false
+            seen.add(key)
             return true
           })
 

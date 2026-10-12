@@ -40,6 +40,7 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
  */
 export class WhisperServer {
   private proc: ChildProcess | null = null
+  private stopped = false
   private port = 0
 
   get isRunning(): boolean {
@@ -52,6 +53,7 @@ export class WhisperServer {
   ): Promise<void> {
     const bin = resolveWhisperServerBinary()
     this.port = opts.port ?? (await freePort())
+    if (this.stopped) throw new Error('已取消')
 
     const args = [
       '-m',
@@ -80,6 +82,7 @@ export class WhisperServer {
   private async waitReady(timeoutMs = 120000): Promise<void> {
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
+      if (this.stopped) throw new Error('已取消')
       if (this.proc && this.proc.exitCode !== null) {
         throw new Error(`whisper-server 启动失败（退出码 ${this.proc.exitCode}）`)
       }
@@ -137,6 +140,7 @@ export class WhisperServer {
   }
 
   stop(): void {
+    this.stopped = true
     if (this.proc) {
       this.proc.kill()
       this.proc = null

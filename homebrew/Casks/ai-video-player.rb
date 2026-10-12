@@ -1,6 +1,6 @@
 cask "ai-video-player" do
-  version "0.1.0"
-  sha256 "6c7de0df50fd63450a4c188f226e25b7a910a50b31c578044277dff3f0a7105a"
+  version "0.2.0"
+  sha256 "fea5c159627f2323f94211d4a36cb6c074353c88a51f2bebd870f0005e0b1320"
 
   url "https://github.com/yangpan-dev/ai-video-player/releases/download/v#{version}/AIVideoPlayer-#{version}-arm64-mac.zip"
   name "AIVideoPlayer"

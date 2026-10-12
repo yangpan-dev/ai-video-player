@@ -52,7 +52,8 @@ export function resolveFfmpeg(): string {
 export function extractAudio(
   videoPath: string,
   outWavPath: string,
-  onLog?: (log: FfmpegLog) => void
+  onLog?: (log: FfmpegLog) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const ffmpeg = resolveFfmpeg()
@@ -70,11 +71,15 @@ export function extractAudio(
       'pcm_s16le',
       outWavPath
     ]
-    const proc = spawn(ffmpeg, args)
+    const proc = spawn(ffmpeg, args, { signal, windowsHide: true })
     proc.stderr.on('data', (d: Buffer) => onLog?.({ type: 'stderr', data: d.toString() }))
-    proc.on('error', (err) => reject(new Error(`无法启动 ffmpeg：${err.message}`)))
+    proc.on('error', (err) => {
+      // AbortError 后仍有 close 事件；等进程关闭再让上层清理临时 WAV。
+      if (!signal?.aborted) reject(new Error(`无法启动 ffmpeg：${err.message}`))
+    })
     proc.on('close', (code) => {
-      if (code === 0) resolve()
+      if (signal?.aborted) reject(new Error('已取消'))
+      else if (code === 0) resolve()
       else reject(new Error(`ffmpeg 抽取音频失败（退出码 ${code}）`))
     })
   })

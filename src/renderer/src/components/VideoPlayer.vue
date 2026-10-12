@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, toRefs, watch } from 'vue'
 import type { SubtitleSegment } from '@shared/types'
 import SubtitleOverlay from './SubtitleOverlay.vue'
+import { playerPreferences } from '../lib/preferences'
 
 const props = defineProps<{
   src: string | null
@@ -10,12 +11,18 @@ const props = defineProps<{
   initialTime?: number
   autoplay?: boolean
   minimal?: boolean
+  hasPrevious?: boolean
+  hasNext?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'error', detail: { message: string; code: number; src: string | null }): void
   (e: 'time', t: number): void
   (e: 'toggleMinimal'): void
+  (e: 'previous'): void
+  (e: 'next'): void
+  (e: 'ended'): void
+  (e: 'pause'): void
 }>()
 
 const videoEl = ref<HTMLVideoElement | null>(null)
@@ -25,15 +32,10 @@ const playerEl = ref<HTMLDivElement | null>(null)
 const currentTime = ref(0)
 const duration = ref(0)
 const isPlaying = ref(false)
-const volume = ref(1)
-const brightness = ref(1)
-const playbackRate = ref(1)
+const { volume, muted, brightness, playbackRate, subtitleMode, fontSize, bottomMargin, autoNext } = toRefs(playerPreferences)
 
 // ---- 字幕设置（PotPlayer 风格）----
 const subtitleOffset = ref(0)
-const subtitleMode = ref<'bilingual' | 'original' | 'translation' | 'off'>('bilingual')
-const fontSize = ref(20)
-const bottomMargin = ref(76)
 
 // ---- UI 状态（IINA 风格）----
 const controlsVisible = ref(false)
@@ -56,6 +58,7 @@ watch(
 watch(volume, (v) => {
   if (videoEl.value) videoEl.value.volume = v
 })
+watch(muted, (v) => { if (videoEl.value) videoEl.value.muted = v })
 // 进度 / 自动播放可能在 src 挂载后才异步就绪，用 watch 兜底
 watch(
   () => props.initialTime,
@@ -78,8 +81,9 @@ function applyInitialTime(t: number | undefined): void {
   const v = videoEl.value
   if (!v || !t || t <= 0) return
   if (v.duration > 0 && t < v.duration) {
-    v.currentTime = t
-    currentTime.value = t
+    const resume = t / v.duration >= 0.98 ? 0 : t
+    v.currentTime = resume
+    currentTime.value = resume
   }
 }
 
@@ -96,6 +100,9 @@ function maybePlay(): void {
 function onLoadedMetadata(): void {
   if (videoEl.value) {
     duration.value = videoEl.value.duration || 0
+    videoEl.value.volume = volume.value
+    videoEl.value.muted = muted.value
+    videoEl.value.playbackRate = playbackRate.value
     // 恢复上次播放进度；若要求自动播放则在就绪后开始
     applyInitialTime(props.initialTime)
     maybePlay()
@@ -106,6 +113,11 @@ function onPlay(): void {
 }
 function onPause(): void {
   isPlaying.value = false
+  emit('pause')
+}
+function toggleMute(): void {
+  muted.value = !muted.value
+  showOsd(muted.value ? '已静音' : '已恢复声音')
 }
 function onError(): void {
   const code = videoEl.value?.error?.code ?? 0
@@ -281,17 +293,43 @@ function fmtTime(s: number): string {
 
 // ---- 键盘快捷键（IINA / PotPlayer 习惯）----
 function onKeydown(e: KeyboardEvent): void {
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+  if (e.target instanceof HTMLElement && (e.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(e.target.tagName))) return
+  if (e.ctrlKey || e.metaKey || e.altKey) return
   switch (e.key) {
     case ' ':
       e.preventDefault()
       togglePlay()
       break
     case 'ArrowLeft':
-      seekBy(-5)
+      e.preventDefault()
+      seekBy(e.shiftKey ? -30 : -5)
       break
     case 'ArrowRight':
-      seekBy(5)
+      e.preventDefault()
+      seekBy(e.shiftKey ? 30 : 5)
+      break
+    case 'ArrowUp':
+    case 'ArrowDown':
+      e.preventDefault()
+      volume.value = Math.min(1, Math.max(0, volume.value + (e.key === 'ArrowUp' ? 0.05 : -0.05)))
+      muted.value = false
+      showOsd('音量 ' + Math.round(volume.value * 100) + '%')
+      break
+    case 'f':
+    case 'F':
+      toggleFullscreen()
+      break
+    case 'v':
+    case 'V':
+      toggleMute()
+      break
+    case 'n':
+    case 'N':
+      if (props.hasNext) emit('next')
+      break
+    case 'p':
+    case 'P':
+      if (props.hasPrevious) emit('previous')
       break
     case '[':
       adjustSubtitle(-0.5)
@@ -308,6 +346,7 @@ onBeforeUnmount(() => {
   if (hideTimer) clearTimeout(hideTimer)
   if (osdTimer) clearTimeout(osdTimer)
   if (minimalHideTimer) clearTimeout(minimalHideTimer)
+  if (clickTimer) clearTimeout(clickTimer)
 })
 </script>
 
@@ -327,6 +366,7 @@ onBeforeUnmount(() => {
       @loadedmetadata="onLoadedMetadata"
       @play="onPlay"
       @pause="onPause"
+      @ended="emit('ended')"
       @error="onError"
       @click="onVideoClick"
     ></video>
@@ -347,9 +387,11 @@ onBeforeUnmount(() => {
 
     <!-- IINA 底部控制栏 -->
     <div v-show="!minimal" class="control-bar" :class="{ visible: controlsVisible }">
+      <button class="icon-btn" :disabled="!hasPrevious" title="上一集（P）" aria-label="上一集" @click="emit('previous')">⏮</button>
       <button class="icon-btn play" title="播放 / 暂停（空格）" @click="togglePlay">
         {{ isPlaying ? '⏸' : '▶' }}
       </button>
+      <button class="icon-btn" :disabled="!hasNext" title="下一集（N）" aria-label="下一集" @click="emit('next')">⏭</button>
       <span class="time">{{ fmtTime(currentTime) }}</span>
       <div
         ref="seekBarEl"
@@ -366,13 +408,14 @@ onBeforeUnmount(() => {
       <span class="time">{{ fmtTime(duration) }}</span>
 
       <div class="vol">
-        <span class="vol-icon" title="音量">
+        <button class="icon-btn vol-icon" :title="muted ? '恢复声音（V）' : '静音（V）'" aria-label="切换静音" :aria-pressed="muted" @click="toggleMute">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+            <path v-if="!muted" d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path v-if="!muted" d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+            <path v-else d="M16 9l6 6m0-6l-6 6"></path>
           </svg>
-        </span>
+        </button>
         <input
           v-model.number="volume"
           type="range"
@@ -381,11 +424,12 @@ onBeforeUnmount(() => {
           step="0.05"
           class="vol-slider"
           title="音量"
+          @input="muted = false"
           :style="{ '--fill': volumeFill }"
         />
       </div>
 
-      <div class="vol">
+      <div class="vol brightness-control">
         <span class="vol-icon" title="亮度">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="5"></circle>
@@ -427,7 +471,7 @@ onBeforeUnmount(() => {
     <!-- IINA 右侧设置抽屉 -->
     <div v-show="!minimal" class="settings" :class="{ open: showSettings }">
       <div class="settings-header">
-        <span>字幕设置</span>
+        <span>播放与字幕设置</span>
         <button class="icon-btn" @click="showSettings = false">✕</button>
       </div>
 
@@ -484,6 +528,15 @@ onBeforeUnmount(() => {
             {{ r }}x
           </button>
         </div>
+      </div>
+      <div class="setting-group">
+        <label><input v-model="autoNext" type="checkbox" /> 播完自动播放下一集</label>
+      </div>
+      <div class="setting-group shortcut-help">
+        空格 播放 / 暂停 · ← → 快进退 5 秒<br />
+        Shift + ← → 快进退 30 秒 · ↑ ↓ 音量<br />
+        F 全屏 · V 静音 · P / N 上一集 / 下一集<br />
+        [ / ] 调整字幕时间 · M 精简模式
       </div>
     </div>
 
@@ -577,6 +630,12 @@ onBeforeUnmount(() => {
 }
 .icon-btn:hover {
   background: rgba(255, 255, 255, 0.14);
+}
+.icon-btn:disabled { opacity: 0.3; cursor: default; }
+.shortcut-help { color: var(--text-dim); line-height: 1.8; font-size: 12px; }
+@media (max-width: 1100px) {
+  .sub-sync, .brightness-control { display: none; }
+  .control-bar { gap: 6px; }
 }
 .icon-lg {
   font-size: 18px;

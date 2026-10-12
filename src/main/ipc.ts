@@ -5,7 +5,7 @@ import { runPipeline, cancelPipeline } from './services/pipeline'
 import { startStreaming, cancelStreaming } from './services/streaming'
 import { listModels, downloadModel, downloadLlmModel, llmModelExists } from './services/models'
 import { getLlmServer, isLlmRunning } from './services/llm'
-import { saveSubtitles, loadSavedSubtitles } from './services/subtitle'
+import { saveSubtitles, loadSavedSubtitles, readSubtitleFile } from './services/subtitle'
 import {
   getLibrary,
   addToPlaylist,
@@ -23,31 +23,45 @@ import { cacheStats, clearCache, cancelConvert, prepareConversion, releasePlayba
 import { VIDEO_EXTENSIONS } from '../shared/media'
 
 export function registerIpc(): void {
+  let activeAiRequest: string | null = null
   ipcMain.handle('pipeline:run', (event, videoPath: string, options: RunPipelineOptions) => {
+    cancelStreaming()
+    activeAiRequest = options.requestId
     return runPipeline(videoPath, options, (progress) => {
-      if (!event.sender.isDestroyed()) event.sender.send('pipeline:progress', progress)
+      if (activeAiRequest === options.requestId && !event.sender.isDestroyed()) {
+        event.sender.send('pipeline:progress', { requestId: options.requestId, data: progress })
+      }
     })
   })
 
   ipcMain.handle('pipeline:cancel', () => {
+    activeAiRequest = null
     cancelPipeline()
   })
 
   ipcMain.handle('stream:start', (event, videoPath: string, options: RunPipelineOptions) => {
+    cancelPipeline()
+    activeAiRequest = options.requestId
+    const send = (channel: string, data: unknown): void => {
+      if (activeAiRequest === options.requestId && !event.sender.isDestroyed()) {
+        event.sender.send(channel, { requestId: options.requestId, data })
+      }
+    }
     return startStreaming(videoPath, options, {
       onSegment: (segment) => {
-        if (!event.sender.isDestroyed()) event.sender.send('stream:segment', segment)
+        send('stream:segment', segment)
       },
       onProgress: (progress) => {
-        if (!event.sender.isDestroyed()) event.sender.send('stream:progress', progress)
+        send('stream:progress', progress)
       },
       onLog: (line) => {
-        if (!event.sender.isDestroyed()) event.sender.send('stream:log', line)
+        send('stream:log', line)
       }
     })
   })
 
   ipcMain.handle('stream:cancel', () => {
+    activeAiRequest = null
     cancelStreaming()
   })
 
@@ -65,6 +79,20 @@ export function registerIpc(): void {
 
   ipcMain.handle('subtitle:load', (_event, videoPath: string) => {
     return loadSavedSubtitles(videoPath)
+  })
+
+  ipcMain.handle('subtitle:import', async (event, path?: string) => {
+    if (!path) {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (!win) return null
+      const result = await dialog.showOpenDialog(win, {
+        title: '导入字幕', properties: ['openFile'],
+        filters: [{ name: '字幕文件', extensions: ['srt', 'vtt'] }]
+      })
+      if (result.canceled || !result.filePaths.length) return null
+      path = result.filePaths[0]
+    }
+    return { path, segments: readSubtitleFile(path) }
   })
 
   ipcMain.handle('library:get', () => getLibrary())

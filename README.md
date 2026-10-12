@@ -14,14 +14,14 @@
 
 ## 📦 下载安装（已打包程序，无需编译）
 
-安装包发布在 GitHub Releases：https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.1.0
+安装包发布在 [GitHub Releases](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.2.0)。本次更新说明见 [v0.2.0](releases/v0.2.0.md)。
 
-- macOS (Apple Silicon)：[AIVideoPlayer-0.1.0-arm64-mac.zip](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.1.0/AIVideoPlayer-0.1.0-arm64-mac.zip)
-- Windows (x64)：[AIVideoPlayer.Setup.0.1.0.exe](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.1.0/AIVideoPlayer.Setup.0.1.0.exe)
+- macOS (Apple Silicon)：[AIVideoPlayer-0.2.0-arm64-mac.zip](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.2.0/AIVideoPlayer-0.2.0-arm64-mac.zip)
+- Windows (x64)：[AIVideoPlayer.Setup.0.2.0.exe](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.2.0/AIVideoPlayer.Setup.0.2.0.exe)
 
 ### macOS（Apple Silicon）
 
-1. 下载 `AIVideoPlayer-0.1.0-arm64-mac.zip`。
+1. 下载 `AIVideoPlayer-0.2.0-arm64-mac.zip`。
 2. 双击解压，把 `AIVideoPlayer.app` 拖到「应用程序」文件夹。
 3. 首次打开若弹出「**Apple 无法验证 “AIVideoPlayer” 是否包含可能危害 Mac 安全或泄漏隐私的恶意软件**」，请任选其一放行（当前为免费 ad-hoc 签名、未做 Apple 公证，属正常现象）：
 
@@ -41,7 +41,7 @@
 
 ### Windows（x64）
 
-1. 下载 `AIVideoPlayer.Setup.0.1.0.exe`。
+1. 下载 `AIVideoPlayer.Setup.0.2.0.exe`。
 2. 双击运行安装程序，按提示完成安装。
 3. 若 Windows SmartScreen 拦截（当前为未签名安装包），点「更多信息 → 仍要运行」。
 4. 首次使用请在应用内下载模型（同 macOS）。
@@ -146,6 +146,14 @@ pnpm dev
 5. 首次翻译会下载 Qwen2.5-7B 翻译模型（约 4.4GB），之后离线可用。
 6. 识别完成后双语字幕随播放显示；点击「导出字幕」在同目录生成 `.zh.srt` / `.zh.vtt`。
 
+## 播放与字幕操作
+
+- 音量、静音、倍速、亮度和字幕样式会自动保存，切换视频或重启后继续使用。
+- 点击「导入字幕」或拖入 SRT/VTT 文件；视频同目录的同名字幕会自动加载。外部字幕保留全部文本行，支持 UTF-8、UTF-16 和常见中文编码。
+- 列表支持搜索、按名称自然排序（例如第 2 集排在第 10 集之前）。控制条提供上一集／下一集，在设置中可开启「播完自动播放下一集」。
+- 快捷键：空格播放／暂停，← → 跳转 5 秒，Shift + ← → 跳转 30 秒，↑ ↓ 音量，F 全屏，V 静音，P / N 上下集，⌘ / Ctrl + O 打开视频，[ / ] 调整字幕时间，M 精简模式。
+- 切换视频自动取消旧字幕任务，取消后的结果不会写入新视频；识别临时音频在任务结束后清理。
+
 ## 视频格式兼容
 
 所有入口（拖入、文件选择、播放列表）都会检测实际流信息，不再仅凭 `.mp4` 后缀判断兼容性。
@@ -165,7 +173,7 @@ pnpm dev
 
 ```bash
 npm run typecheck
-npm run test:media       # 生成实际编码样本，验证探测、转码、缓存、取消和 Range 流
+npm test                # 实际编码样本、缓存、Range 流、字幕解析和设置校验
 npm run test:playback    # 构建后启动独立测试配置的 Electron，验证界面自动播放、拖动和失败回退
 ```
 
@@ -176,6 +184,7 @@ npm run test:playback    # 构建后启动独立测试配置的 Electron，验�
 ```bash
 pnpm run build:mac         # macOS dmg（需开发者证书才会签名；无证书则跳过）
 pnpm run build:mac:adhoc   # macOS .app + ad-hoc 签名（免费，本机可用）
+pnpm run build:mac:release # macOS arm64 ZIP，签名后归档，可用于 Releases
 pnpm run build:win         # Windows nsis
 ```
 

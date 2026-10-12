@@ -9,7 +9,7 @@
  * 但要获得 GPU 加速仍需在 Windows 上用 MSVC/CUDA 原生编译。
  */
 import { spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -107,6 +107,20 @@ function copyTree(srcDir) {
 }
 copyTree(join(whisperSrc, 'build-win', 'bin'))
 copyTree(join(llamaSrc, 'build-win', 'bin'))
+
+// llvm-mingw 的 C++ / OpenMP 运行库不会出现在 CMake 输出目录中。
+// 必须随 exe 分发，否则未安装工具链的 Windows 电脑无法启动识别或翻译。
+const runtimeDir = join(mingwDir, 'x86_64-w64-mingw32', 'bin')
+for (const name of ['libc++.dll', 'libunwind.dll', 'libomp.dll']) {
+  copyFileSync(join(runtimeDir, name), join(binDir, name))
+}
+const licenseDir = join(binDir, 'licenses')
+mkdirSync(licenseDir, { recursive: true })
+copyFileSync(join(mingwDir, 'LICENSE.TXT'), join(licenseDir, 'LLVM.txt'))
+const mingwLicenses = join(mingwDir, 'x86_64-w64-mingw32', 'share', 'mingw32')
+for (const name of readdirSync(mingwLicenses).filter(name => name.startsWith('COPYING'))) {
+  copyFileSync(join(mingwLicenses, name), join(licenseDir, name))
+}
 
 console.log('\n✅ Windows 二进制已生成：', binDir)
 for (const name of readdirSync(binDir)) console.log('  -', name)

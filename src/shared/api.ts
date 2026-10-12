@@ -1,5 +1,6 @@
 import type { MediaProbe } from './media'
 import type {
+  AiEvent,
   Library,
   LlmStatus,
   LlmTranslatePayload,
@@ -27,13 +28,13 @@ export interface Api {
   getPathForFile(file: File): string
   runPipeline(videoPath: string, options: RunPipelineOptions): Promise<TranscribeResult>
   cancelPipeline(): Promise<void>
-  onPipelineProgress(cb: (p: PipelineProgress) => void): () => void
+  onPipelineProgress(cb: (p: AiEvent<PipelineProgress>) => void): () => void
 
   startStreaming(videoPath: string, options: RunPipelineOptions): Promise<StreamResult>
   cancelStreaming(): Promise<void>
-  onStreamSegment(cb: (seg: SubtitleSegment) => void): () => void
-  onStreamProgress(cb: (p: StreamProgress) => void): () => void
-  onStreamLog(cb: (line: string) => void): () => void
+  onStreamSegment(cb: (seg: AiEvent<SubtitleSegment>) => void): () => void
+  onStreamProgress(cb: (p: AiEvent<StreamProgress>) => void): () => void
+  onStreamLog(cb: (line: AiEvent<string>) => void): () => void
 
   listModels(): Promise<WhisperModelInfo[]>
   downloadModel(name: string): Promise<string>
@@ -41,6 +42,7 @@ export interface Api {
 
   saveSubtitles(payload: SaveSubtitlesPayload): Promise<SaveSubtitlesResult>
   loadSavedSubtitles(videoPath: string): Promise<SubtitleSegment[] | null>
+  importSubtitles(path?: string): Promise<{ path: string; segments: SubtitleSegment[] } | null>
 
   getLibrary(): Promise<Library>
   addToPlaylist(path: string, title: string): Promise<Library>

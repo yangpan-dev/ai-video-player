@@ -1,14 +1,16 @@
 import { join } from 'node:path'
+import { randomUUID } from 'node:crypto'
+import { rm } from 'node:fs/promises'
 import type { PipelineProgress, RunPipelineOptions, TranscribeResult } from '@shared/types'
 import { extractAudio } from './ffmpeg'
 import { transcribe } from './whisper'
 import { modelExists, whisperModelFile } from './models'
 import { getTempDir } from './paths'
 
-let cancelled = false
+let active: AbortController | undefined
 
 export function cancelPipeline(): void {
-  cancelled = true
+  active?.abort()
 }
 
 /** 解析 ffmpeg stderr 里的 `time=HH:MM:SS` 与 `Duration:` 用于估算进度 */
@@ -33,14 +35,15 @@ function createFfmpegProgress(onProgress: (p: PipelineProgress) => void) {
 
 /**
  * 主进程流水线：抽取音频 -> whisper.cpp 识别。
- * 翻译在渲染进程的 Web Worker 中完成（NLLB / onnxruntime-web）。
+ * 翻译由渲染进程调用本地 Qwen 服务完成。
  */
 export async function runPipeline(
   videoPath: string,
   options: RunPipelineOptions,
   onProgress: (p: PipelineProgress) => void
 ): Promise<TranscribeResult> {
-  cancelled = false
+  cancelPipeline()
+  const controller = new AbortController()
   const modelName = options.model ?? 'small'
 
   if (!modelExists(modelName)) {
@@ -49,23 +52,27 @@ export async function runPipeline(
     )
   }
 
-  const wavPath = join(getTempDir(), `audio-${Date.now()}.wav`)
+  const wavPath = join(getTempDir(), `audio-${randomUUID()}.wav`)
+  active = controller
+  try {
+    onProgress({ stage: 'extract', message: '正在抽取音频', percent: 0 })
+    const ffmpegProgress = createFfmpegProgress(onProgress)
+    await extractAudio(videoPath, wavPath, ({ data }) => ffmpegProgress(data), controller.signal)
+    if (controller.signal.aborted) throw new Error('已取消')
 
-  // 1. 抽取音频
-  onProgress({ stage: 'extract', message: '正在抽取音频', percent: 0 })
-  const ffmpegProgress = createFfmpegProgress(onProgress)
-  await extractAudio(videoPath, wavPath, ({ data }) => ffmpegProgress(data))
-  if (cancelled) throw new Error('已取消')
+    onProgress({ stage: 'transcribe', message: '正在识别语音（Whisper）', percent: 0 })
+    const { segments, detectedLanguage } = await transcribe(wavPath, whisperModelFile(modelName), {
+      signal: controller.signal,
+      language: options.language === 'auto' ? 'auto' : options.language,
+      onProgress: (percent) =>
+        onProgress({ stage: 'transcribe', message: '正在识别语音（Whisper）', percent })
+    })
+    if (controller.signal.aborted) throw new Error('已取消')
 
-  // 2. 识别
-  onProgress({ stage: 'transcribe', message: '正在识别语音（Whisper）', percent: 0 })
-  const { segments, detectedLanguage } = await transcribe(wavPath, whisperModelFile(modelName), {
-    language: options.language === 'auto' ? 'auto' : options.language,
-    onProgress: (percent) =>
-      onProgress({ stage: 'transcribe', message: '正在识别语音（Whisper）', percent })
-  })
-  if (cancelled) throw new Error('已取消')
-
-  onProgress({ stage: 'done', message: '识别完成', percent: 100, detectedLanguage })
-  return { segments, detectedLanguage }
+    onProgress({ stage: 'done', message: '识别完成', percent: 100, detectedLanguage })
+    return { segments, detectedLanguage }
+  } finally {
+    if (active === controller) active = undefined
+    await rm(wavPath, { force: true }).catch(() => {})
+  }
 }

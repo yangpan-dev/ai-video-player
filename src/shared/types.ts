@@ -34,10 +34,16 @@ export interface TranscribeResult {
 }
 
 export interface RunPipelineOptions {
+  requestId: string
   /** whisper 模型名，如 small / medium / large-v3-turbo */
   model: string
   /** 'auto' | 'ja' | 'en' */
   language: string
+}
+
+export interface AiEvent<T> {
+  requestId: string
+  data: T
 }
 
 export interface SaveSubtitlesPayload {

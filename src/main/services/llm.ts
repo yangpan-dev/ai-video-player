@@ -34,6 +34,7 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 export class LlmServer {
   private proc: ChildProcess | null = null
   private port = 0
+  private stopped = false
 
   get isRunning(): boolean {
     return this.proc !== null && this.proc.exitCode === null
@@ -46,6 +47,7 @@ export class LlmServer {
       throw new Error(`翻译模型 ${LLM_MODEL_FILE} 尚未下载。请在界面点击「下载翻译模型」。`)
     }
     this.port = await freePort()
+    if (this.stopped) throw new Error('已取消')
     this.proc = spawn(bin, [
       '-m',
       modelPath,
@@ -71,6 +73,7 @@ export class LlmServer {
   private async waitReady(timeoutMs = 300000): Promise<void> {
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
+      if (this.stopped) throw new Error('已取消')
       if (this.proc && this.proc.exitCode !== null) {
         throw new Error(`llama-server 启动失败（退出码 ${this.proc.exitCode}）`)
       }
@@ -144,6 +147,7 @@ export class LlmServer {
   }
 
   stop(): void {
+    this.stopped = true
     if (this.proc) {
       this.proc.kill()
       this.proc = null
@@ -156,16 +160,23 @@ let singleton: LlmServer | null = null
 let loading: Promise<LlmServer> | null = null
 
 export async function getLlmServer(onLog?: (line: string) => void): Promise<LlmServer> {
+  if (loading) return loading
   if (singleton?.isRunning) return singleton
-  if (!loading) {
-    loading = (async () => {
-      const s = new LlmServer()
+  const s = new LlmServer()
+  singleton = s // 加载中也能由 stopLlmServer 关闭，避免退出后残留进程。
+  const pending = (async () => {
+    try {
       await s.start({ onLog })
-      singleton = s
+      if (singleton !== s) throw new Error('已取消')
       return s
-    })()
-  }
-  return loading
+    } catch (error) {
+      s.stop()
+      if (singleton === s) singleton = null
+      throw error
+    }
+  })()
+  loading = pending
+  try { return await pending } finally { if (loading === pending) loading = null }
 }
 
 export function stopLlmServer(): void {

@@ -26,6 +26,7 @@ const api: Api = {
 
   saveSubtitles: (payload) => ipcRenderer.invoke('subtitle:save', payload),
   loadSavedSubtitles: (videoPath) => ipcRenderer.invoke('subtitle:load', videoPath),
+  importSubtitles: (path) => ipcRenderer.invoke('subtitle:import', path),
 
   getLibrary: () => ipcRenderer.invoke('library:get'),
   addToPlaylist: (path, title) => ipcRenderer.invoke('library:add-playlist', path, title),

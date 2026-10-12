@@ -1,5 +1,6 @@
 appId: com.example.local-ai-video-player
 productName: AIVideoPlayer
+artifactName: "AIVideoPlayer-${version}-${arch}.${ext}"
 # 签名：默认走 ad-hoc（免费）。
 # 有 Apple Developer ID 证书后，把 identity 改成证书名并开启 CSC_IDENTITY_AUTO_DISCOVERY 即可。
 # identity: null 表示不查找证书、跳过正式签名（仅 ad-hoc，本机可用，分发时会有 Gatekeeper 提示）。
@@ -33,6 +34,7 @@ win:
       filter:
         - "**/*"
 nsis:
+  artifactName: "AIVideoPlayer.Setup.${version}.${ext}"
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
