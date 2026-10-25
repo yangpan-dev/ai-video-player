@@ -14,10 +14,10 @@
 
 ## 📦 下载安装（已打包程序，无需编译）
 
-最新 macOS 安装包发布在 [GitHub Releases v0.2.1](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.2.1)，更新说明见 [v0.2.1](releases/v0.2.1.md)。Windows 安装包暂沿用 v0.2.0。
+最新 macOS / Windows 安装包发布在 [GitHub Releases v0.2.1](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.2.1)，更新说明见 [v0.2.1](releases/v0.2.1.md)。
 
 - macOS (Apple Silicon)：[AIVideoPlayer-0.2.1-arm64-mac.zip](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.2.1/AIVideoPlayer-0.2.1-arm64-mac.zip)
-- Windows (x64)：[AIVideoPlayer.Setup.0.2.0.exe](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.2.0/AIVideoPlayer.Setup.0.2.0.exe)
+- Windows (x64)：[AIVideoPlayer.Setup.0.2.1.exe](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.2.1/AIVideoPlayer.Setup.0.2.1.exe)
 
 ### macOS（Apple Silicon）
 
@@ -41,7 +41,7 @@
 
 ### Windows（x64）
 
-1. 下载 `AIVideoPlayer.Setup.0.2.0.exe`。
+1. 下载 `AIVideoPlayer.Setup.0.2.1.exe`。
 2. 双击运行安装程序，按提示完成安装。
 3. 若 Windows SmartScreen 拦截（当前为未签名安装包），点「更多信息 → 仍要运行」。
 4. 首次使用请在应用内下载模型（同 macOS）。
@@ -235,6 +235,7 @@ node scripts/build-win-cross.mjs   # 交叉编译 whisper.cpp + llama.cpp
 注意事项：
 
 - 打包前需先执行 `pnpm run build:whisper`，把目标平台的二进制放入 `resources/bin/<platform>-<arch>/`（`electron-builder` 会随 `extraResources` 打包）。
+- Windows 原生打包会补齐 MSVC、OpenMP 与 OpenSSL 运行库，并在精简 PATH 下检查三个 AI 引擎能否启动。`Verify Windows Installer` 工作流还能解包指定构建产物，检查应用版本、x64 架构和包内引擎启动；该工作流仅使用只读仓库权限，发布由本机 CLI 完成。
 - `ffmpeg-static` 的二进制按当前安装平台下载，**跨平台打包需在对应平台（或 CI）各跑一次依赖安装**，或改为手动放置 ffmpeg 二进制。
 - whisper 模型与 Qwen 翻译模型体积较大，默认不打包进安装包；用户首次运行按需下载，或自行预置到 `resources/models/`。
 
