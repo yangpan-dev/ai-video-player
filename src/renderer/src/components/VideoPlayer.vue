@@ -42,10 +42,12 @@ const controlsVisible = ref(false)
 const showSettings = ref(false)
 const osd = ref<string | null>(null)
 const minimalBarVisible = ref(false)
+const cursorHidden = ref(false)
 
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 let osdTimer: ReturnType<typeof setTimeout> | null = null
 let minimalHideTimer: ReturnType<typeof setTimeout> | null = null
+let cursorHideTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(
   () => props.src,
@@ -141,6 +143,16 @@ function toggleFullscreen(): void {
   }
 }
 
+function clearCursorHideTimer(): void {
+  if (cursorHideTimer) clearTimeout(cursorHideTimer)
+  cursorHideTimer = null
+}
+
+function onFullscreenChange(): void {
+  clearCursorHideTimer()
+  cursorHidden.value = document.fullscreenElement === playerEl.value
+}
+
 // 单击画面 = 播放/暂停；双击 = 全屏（用延时区分单击和双击）
 let clickTimer: ReturnType<typeof setTimeout> | null = null
 function onVideoClick(): void {
@@ -212,11 +224,21 @@ function pokeMinimal(): void {
 }
 
 function onPlayerMouseMove(): void {
+  clearCursorHideTimer()
+  cursorHidden.value = false
+  if (document.fullscreenElement === playerEl.value) {
+    cursorHideTimer = setTimeout(() => {
+      cursorHideTimer = null
+      cursorHidden.value = true
+    }, 2600)
+  }
   pokeControls()
   pokeMinimal()
 }
 
 function onPlayerMouseLeave(): void {
+  clearCursorHideTimer()
+  cursorHidden.value = document.fullscreenElement === playerEl.value
   controlsVisible.value = false
   minimalBarVisible.value = false
 }
@@ -340,9 +362,14 @@ function onKeydown(e: KeyboardEvent): void {
   }
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+})
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  clearCursorHideTimer()
   if (hideTimer) clearTimeout(hideTimer)
   if (osdTimer) clearTimeout(osdTimer)
   if (minimalHideTimer) clearTimeout(minimalHideTimer)
@@ -354,6 +381,7 @@ onBeforeUnmount(() => {
   <div
     ref="playerEl"
     class="player"
+    :class="{ 'hide-cursor': cursorHidden }"
     @mousemove="onPlayerMouseMove"
     @mouseleave="onPlayerMouseLeave"
   >
@@ -568,6 +596,10 @@ onBeforeUnmount(() => {
   outline: none;
   display: block;
   cursor: pointer;
+}
+.player:fullscreen.hide-cursor,
+.player:fullscreen.hide-cursor :deep(*) {
+  cursor: none !important;
 }
 
 /* ---- 顶部栏 ---- */

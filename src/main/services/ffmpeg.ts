@@ -13,21 +13,36 @@ export interface FfmpegLog {
 }
 
 /** 不依赖额外的 ffprobe 安装；限制日志大小和探测时间。 */
-export function probeVideo(videoPath: string): Promise<MediaProbe> {
+export function probeVideo(videoPath: string, signal?: AbortSignal): Promise<MediaProbe> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new Error('已取消'))
     const proc = spawn(resolveFfmpeg(), ['-nostdin', '-hide_banner', '-i', videoPath], { windowsHide: true })
     let output = ''
+    let timedOut = false
+    let killTimer: ReturnType<typeof setTimeout> | undefined
+    const abort = (): void => {
+      proc.kill()
+      killTimer = setTimeout(() => proc.kill('SIGKILL'), 2000)
+    }
+    signal?.addEventListener('abort', abort, { once: true })
     const timer = setTimeout(() => {
+      timedOut = true
       proc.kill('SIGKILL')
-      reject(new Error('读取媒体信息超时'))
     }, 30000)
+    const cleanup = (): void => {
+      clearTimeout(timer)
+      if (killTimer) clearTimeout(killTimer)
+      signal?.removeEventListener('abort', abort)
+    }
     proc.stderr.on('data', (d: Buffer) => { output = (output + d.toString()).slice(-256 * 1024) })
     proc.on('error', (err) => {
-      clearTimeout(timer)
+      cleanup()
       reject(new Error(`无法启动 ffmpeg：${err.message}`))
     })
     proc.on('close', () => {
-      clearTimeout(timer)
+      cleanup()
+      if (signal?.aborted) return reject(new Error('已取消'))
+      if (timedOut) return reject(new Error('读取媒体信息超时'))
       try { resolve(parseMediaProbe(output)) } catch (err) { reject(err) }
     })
   })

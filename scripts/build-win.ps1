@@ -1,6 +1,6 @@
 # 在 Windows 上一条命令构建安装包（NSIS .exe）
 # 前置依赖：
-#   - Git、Node.js 20+、pnpm 10
+#   - Git、Node.js 22.12+、pnpm 10.26+
 #   - Visual Studio Build Tools（C++ 桌面开发负载）或 MinGW
 #   - CMake
 $ErrorActionPreference = "Stop"

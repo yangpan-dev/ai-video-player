@@ -287,7 +287,7 @@ async function afterVideoOpened(path: string, seq: number): Promise<void> {
 function setVideoFromPath(path: string): void {
   saveCurrentProgress()
   stopSubtitleWork()
-  stopActiveConversion()
+  stopActiveConversion(true)
   shouldAutoplay.value = false
   initialTime.value = 0
   currentVideoTime = 0
@@ -581,9 +581,9 @@ async function exportSubtitles(): Promise<void> {
 // 打开、取消、重试都使旧异步结果作废。
 let convertSeq = 0
 
-function stopActiveConversion(): void {
+function stopActiveConversion(releasePlayback = false): void {
   convertSeq++
-  void window.api.cancelConvert()
+  void window.api.cancelConvert(releasePlayback)
   probing.value = false
   remuxing.value = false
   transcoding.value = false
@@ -766,7 +766,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   openSeq++
   saveCurrentProgress()
-  stopActiveConversion()
+  stopActiveConversion(true)
   stopSubtitleWork()
   window.removeEventListener('dragover', onWindowDragOver)
   window.removeEventListener('drop', onWindowDrop)

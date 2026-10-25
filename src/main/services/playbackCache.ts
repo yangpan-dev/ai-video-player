@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ConversionMode } from '../../shared/media'
+import type { ConversionMode, MediaProbe } from '../../shared/media'
 import { convertMedia, probeVideo, type FfmpegLog } from './ffmpeg'
 import { getTranscodeCacheDir } from './paths'
 
@@ -20,6 +20,31 @@ export function cancelConvert(): void {
 
 export function releasePlaybackCache(): void {
   protectedPath = undefined
+}
+
+// 探测和转换共用队列；取消必须等旧 FFmpeg 退出，新任务才能启动。
+function runLatest<T>(run: (signal: AbortSignal, check: () => void) => Promise<T>): Promise<T> {
+  cancelConvert()
+  const ticket = generation
+  const job = queue.catch(() => {}).then(async () => {
+    const check = (): void => { if (ticket !== generation) throw new Error('已取消') }
+    check()
+    const controller = new AbortController()
+    active = controller
+    try {
+      const result = await run(controller.signal, check)
+      check()
+      return result
+    } finally {
+      if (active === controller) active = undefined
+    }
+  })
+  queue = job
+  return job
+}
+
+export function probePlayback(sourcePath: string): Promise<MediaProbe> {
+  return runLatest((signal) => probeVideo(sourcePath, signal))
 }
 
 function remove(path: string): void {
@@ -72,11 +97,7 @@ export function clearCache(): Promise<ReturnType<typeof cacheStats>> {
 export function prepareConversion(
   sourcePath: string, mode: ConversionMode, onLog?: (log: FfmpegLog) => void
 ): Promise<{ outputPath: string; cached: boolean }> {
-  cancelConvert()
-  const ticket = generation
-  const job = queue.catch(() => {}).then(async () => {
-    const check = (): void => { if (ticket !== generation) throw new Error('已取消') }
-    check()
+  return runLatest(async (signal, check) => {
     const source = statSync(sourcePath)
     const fingerprint = JSON.stringify({ version: VERSION, sourcePath, mode, size: source.size, mtime: source.mtimeMs })
     const key = createHash('sha256').update(fingerprint).digest('hex')
@@ -93,12 +114,10 @@ export function prepareConversion(
       return { outputPath, cached: true }
     }
     const temporary = join(getTranscodeCacheDir(), `${key}.${randomUUID()}.partial.mp4`)
-    const controller = new AbortController()
-    active = controller
     try {
-      const probe = await probeVideo(sourcePath)
+      const probe = await probeVideo(sourcePath, signal)
       check()
-      await convertMedia(sourcePath, temporary, mode, probe, controller.signal, onLog)
+      await convertMedia(sourcePath, temporary, mode, probe, signal, onLog)
       check()
       const current = statSync(sourcePath)
       if (current.size !== source.size || current.mtimeMs !== source.mtimeMs) throw new Error('源文件在转换期间发生了变化，请重新打开。')
@@ -111,10 +130,7 @@ export function prepareConversion(
       trimCache()
       return { outputPath, cached: false }
     } finally {
-      if (active === controller) active = undefined
       remove(temporary)
     }
   })
-  queue = job
-  return job
 }

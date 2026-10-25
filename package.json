@@ -1,6 +1,6 @@
 {
   "name": "local-ai-video-player",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Mac + Windows 本地 AI 视频播放器：无字幕日语/英语视频实时生成原文 + 中文字幕",
   "main": "./out/main/index.js",
   "author": "",
@@ -17,9 +17,9 @@
     "test": "node --test tests/media.test.cjs tests/player.test.cjs",
     "test:playback": "npm run build && node tests/run-playback.cjs",
     "build:win": "electron-vite build && electron-builder --win",
-    "build:mac": "electron-vite build && electron-builder --mac",
-    "build:mac:adhoc": "electron-vite build && electron-builder --mac --dir && node scripts/adhoc-sign.mjs",
-    "build:mac:release": "electron-vite build && electron-builder --mac --arm64 --dir -c.electronDist=node_modules/electron/dist --publish never && node scripts/adhoc-sign.mjs && node scripts/archive-mac.mjs",
+    "build:mac": "node scripts/prepare-mac-resources.mjs && electron-vite build && electron-builder --mac",
+    "build:mac:adhoc": "node scripts/prepare-mac-resources.mjs && electron-vite build && electron-builder --mac --dir && node scripts/adhoc-sign.mjs",
+    "build:mac:release": "node scripts/prepare-mac-resources.mjs && electron-vite build && electron-builder --mac --arm64 --dir -c.electronDist=node_modules/electron/dist --publish never && node scripts/adhoc-sign.mjs && node scripts/archive-mac.mjs",
     "build:whisper": "node scripts/build-whisper.mjs",
     "build:llama": "node scripts/build-llama.mjs",
     "download:model": "node scripts/download-model.mjs",
@@ -27,15 +27,6 @@
   },
   "dependencies": {
     "ffmpeg-static": "^5.2.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "esbuild",
-      "ffmpeg-static",
-      "sharp",
-      "protobufjs"
-    ]
   },
   "devDependencies": {
     "@huggingface/transformers": "^3.3.0",

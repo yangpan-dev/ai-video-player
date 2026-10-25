@@ -1,9 +1,11 @@
 const { test, after } = require('node:test')
 const assert = require('node:assert/strict')
-const { mkdtempSync, writeFileSync, readdirSync, existsSync, rmSync, utimesSync, openSync, ftruncateSync, closeSync } = require('node:fs')
+const { mkdtempSync, writeFileSync, copyFileSync, readdirSync, existsSync, rmSync, utimesSync, openSync, ftruncateSync, closeSync } = require('node:fs')
 const { tmpdir } = require('node:os')
 const { join, resolve } = require('node:path')
 const { spawnSync } = require('node:child_process')
+const { createServer } = require('node:http')
+const { once } = require('node:events')
 const dir = mkdtempSync(join(tmpdir(), 'video-compat-test-'))
 const load = require('./load-ts.cjs')({ app: { isPackaged: false, getAppPath: () => resolve('.'), getPath: () => dir } })
 const { probeVideo } = load('src/main/services/ffmpeg.ts')
@@ -139,6 +141,74 @@ test('cancelled and superseded jobs leave no partial cache and can be retried', 
   assert.equal((await cache.prepareConversion(join(dir, 'browser.webm'), 'transcode')).cached, false)
 })
 
+test('cancelling a stalled media probe stops FFmpeg and releases its input', { timeout: 10000 }, async (t) => {
+  const controller = new AbortController()
+  const server = createServer(() => { /* 模拟尚未返回媒体数据的输入。 */ })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  try {
+    const request = once(server, 'request', { signal: t.signal })
+    const cancelled = assert.rejects(probeVideo(`http://127.0.0.1:${server.address().port}/slow`, controller.signal), /已取消/)
+    const [incoming] = await request
+    incoming.on('error', () => { /* FFmpeg 取消时会重置连接。 */ })
+    const closed = new Promise(resolve => incoming.once('close', resolve))
+    controller.abort()
+    await cancelled
+    await closed
+    await assert.rejects(probeVideo('unused.mp4', controller.signal), /已取消/)
+  } finally {
+    controller.abort()
+    server.closeAllConnections()
+    server.close()
+  }
+})
+
+test('rapid switching serializes probes, cancels active input and skips superseded requests', { timeout: 10000 }, async (t) => {
+  const opened = []
+  let liveInputs = 0
+  let maxInputs = 0
+  const server = createServer((request) => {
+    opened.push(request.url)
+    maxInputs = Math.max(maxInputs, ++liveInputs)
+    request.on('error', () => { /* 取消会重置连接。 */ })
+    request.on('close', () => liveInputs--)
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const url = `http://127.0.0.1:${server.address().port}`
+  try {
+    const firstStarted = once(server, 'request', { signal: t.signal })
+    const first = assert.rejects(cache.probePlayback(url + '/first'), /已取消/)
+    await firstStarted
+    const latestStarted = once(server, 'request', { signal: t.signal })
+    const skipped = assert.rejects(cache.probePlayback(url + '/skipped'), /已取消/)
+    const latest = assert.rejects(cache.probePlayback(url + '/latest'), /已取消/)
+    await latestStarted
+    cache.cancelConvert()
+    await Promise.all([first, skipped, latest])
+    assert.deepEqual(opened, ['/first', '/latest'])
+    assert.equal(maxInputs, 1)
+    assert.equal((await cache.probePlayback(join(dir, 'normal.mp4'))).videoCodec, 'h264')
+  } finally {
+    cache.cancelConvert()
+    server.closeAllConnections()
+    server.close()
+  }
+})
+
+test('opening a new video stops an active conversion before probing and removes partial output', async () => {
+  const source = join(dir, 'interrupted.ts')
+  copyFileSync(join(dir, 'broadcast.ts'), source)
+  let next
+  const interrupted = cache.prepareConversion(source, 'transcode', () => {
+    next ??= cache.probePlayback(join(dir, 'normal.mp4'))
+  })
+  await assert.rejects(interrupted, /已取消/)
+  assert.ok(next)
+  assert.equal((await next).videoCodec, 'h264')
+  assert.ok(!readdirSync(cache.cacheStats().dir).some((name) => name.includes('.partial.')))
+})
+
 test('truncated cache is rebuilt; cleanup is serialized before a new conversion', async () => {
   const source = join(dir, 'copy.mkv')
   const first = await cache.prepareConversion(source, 'remux')
@@ -187,6 +257,7 @@ test('streaming protocol handles normal, open, suffix, invalid ranges and HEAD',
 
 test('cache cleanup protects the file currently playing', async () => {
   const current = await cache.prepareConversion(join(dir, 'copy.mkv'), 'remux')
+  cache.cancelConvert()
   await cache.clearCache()
   assert.ok(existsSync(current.outputPath))
   assert.equal(cache.cacheStats().fileCount, 1)

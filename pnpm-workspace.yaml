@@ -1,0 +1,8 @@
+allowBuilds:
+  electron: true
+  esbuild: true
+  ffmpeg-static: true
+  protobufjs: true
+  sharp: true
+  electron-winstaller: false
+  onnxruntime-node: false

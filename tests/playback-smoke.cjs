@@ -2,7 +2,7 @@
 // then MEDIA_TEST_MANIFEST=/tmp/... electron tests/playback-smoke.cjs
 const electron = require('electron')
 const { app, BrowserWindow, protocol } = electron
-const { readFileSync, mkdtempSync, writeFileSync } = require('node:fs')
+const { readFileSync, mkdtempSync, writeFileSync, existsSync } = require('node:fs')
 const { join, resolve } = require('node:path')
 const assert = require('node:assert/strict')
 const manifest = JSON.parse(readFileSync(process.env.MEDIA_TEST_MANIFEST, 'utf8'))
@@ -182,6 +182,54 @@ app.whenReady().then(async () => {
     assert.match(subtitleText, /Imported line one/)
     assert.doesNotMatch(subtitleText, /STALE|Old source/)
     console.log('PASS stale AI segments, translations and task completion cannot overwrite the new source')
+
+    await select(manifest.outputs.find(o => o.name === 'hevc.mp4').source)
+    const playingCache = await win.webContents.executeJavaScript(`(async () => {
+      const path = decodeURIComponent(document.querySelector('video').currentSrc.slice('media://f/'.length));
+      await window.api.cancelConvert();
+      await window.api.clearCache();
+      return path;
+    })()`)
+    assert.match(playingCache, /\.transcode\.mp4$/)
+    assert.ok(existsSync(playingCache), 'cancelling a task must keep the playing cache protected')
+    console.log('PASS cancelling through preload/IPC preserves the currently playing cache')
+
+    win.show()
+    win.focus()
+    await win.webContents.executeJavaScript(`document.querySelector('.player').requestFullscreen()`, true)
+    await delay(1500)
+    const cursors = () => win.webContents.executeJavaScript(`(() => {
+      return ['.player', 'video', '.control-bar button', '.seek', '.vol-slider'].map(selector => getComputedStyle(document.querySelector(selector)).cursor);
+    })()`)
+    assert.equal(await win.webContents.executeJavaScript(`document.fullscreenElement === document.querySelector('.player')`), true)
+    // macOS 全屏动画可能产生额外 mousemove，等动画稳定后再计时。
+    for (let n = 0; n < 80; n++) {
+      if ((await cursors()).every(cursor => cursor === 'none')) break
+      await delay(100)
+    }
+    assert.deepEqual(await cursors(), Array(5).fill('none'))
+    let mouseOffset = 0
+    const moveMouse = async () => {
+      const point = await win.webContents.executeJavaScript(`(() => {
+        const rect = document.querySelector('video').getBoundingClientRect();
+        return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
+      })()`)
+      win.webContents.sendInputEvent({ type: 'mouseMove', x: point.x + mouseOffset++, y: point.y })
+      await delay(50)
+    }
+    await moveMouse()
+    assert.ok((await cursors()).every(cursor => cursor !== 'none'))
+    await delay(1500)
+    await moveMouse()
+    await delay(1500)
+    assert.ok((await cursors()).every(cursor => cursor !== 'none'), 'movement must restart the idle timer')
+    await delay(1300)
+    assert.deepEqual(await cursors(), Array(5).fill('none'))
+    await win.webContents.executeJavaScript(`document.exitFullscreen()`)
+    await delay(150)
+    assert.ok((await cursors()).every(cursor => cursor !== 'none'))
+    win.hide()
+    console.log('PASS fullscreen hides all cursors, movement resets the idle timer and exit restores cursors')
     if (process.env.UI_SCREENSHOT) {
       await win.webContents.executeJavaScript(`document.querySelector('.player').dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))`)
       await delay(300)

@@ -18,8 +18,7 @@ import {
   saveProgress,
   getProgress
 } from './services/library'
-import { probeVideo } from './services/ffmpeg'
-import { cacheStats, clearCache, cancelConvert, prepareConversion, releasePlaybackCache } from './services/playbackCache'
+import { cacheStats, clearCache, cancelConvert, prepareConversion, probePlayback, releasePlaybackCache } from './services/playbackCache'
 import { VIDEO_EXTENSIONS } from '../shared/media'
 
 export function registerIpc(): void {
@@ -156,15 +155,15 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle('media:probe', (_event, videoPath: string) => {
-    return probeVideo(videoPath)
+    return probePlayback(videoPath)
   })
 
   ipcMain.handle('cache:stats', () => cacheStats())
   ipcMain.handle('cache:clear', () => clearCache())
 
-  ipcMain.handle('media:convert-cancel', () => {
+  ipcMain.handle('media:convert-cancel', (_event, releasePlayback = false) => {
     cancelConvert()
-    releasePlaybackCache()
+    if (releasePlayback) releasePlaybackCache()
   })
 
   ipcMain.handle('media:remux', (event, videoPath: string, transcodeAudio = false) => {

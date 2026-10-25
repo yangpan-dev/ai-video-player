@@ -16,6 +16,8 @@
 
 安装包发布在 [GitHub Releases](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.2.0)。本次更新说明见 [v0.2.0](releases/v0.2.0.md)。
 
+源码 v0.2.1 的优化与本地打包说明见 [v0.2.1](releases/v0.2.1.md)。
+
 - macOS (Apple Silicon)：[AIVideoPlayer-0.2.0-arm64-mac.zip](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.2.0/AIVideoPlayer-0.2.0-arm64-mac.zip)
 - Windows (x64)：[AIVideoPlayer.Setup.0.2.0.exe](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.2.0/AIVideoPlayer.Setup.0.2.0.exe)
 
@@ -99,12 +101,14 @@ src/
 
 ### 1. 安装依赖
 
+使用 Node.js 22.12+、pnpm 10.26+（或 pnpm 11）。
+
 ```bash
 pnpm install
 ```
 
 > 若 pnpm 提示忽略构建脚本，需放行 `electron`、`ffmpeg-static` 的 install 脚本
-> （本项目已在 `package.json` 的 `pnpm.onlyBuiltDependencies` 中配置）。
+> （本项目已在 `pnpm-workspace.yaml` 的 `allowBuilds` 中配置，需要 pnpm 10.26+ / 11）。
 
 ### 2. 编译 whisper.cpp 二进制（首次必需）
 
@@ -152,6 +156,7 @@ pnpm dev
 - 点击「导入字幕」或拖入 SRT/VTT 文件；视频同目录的同名字幕会自动加载。外部字幕保留全部文本行，支持 UTF-8、UTF-16 和常见中文编码。
 - 列表支持搜索、按名称自然排序（例如第 2 集排在第 10 集之前）。控制条提供上一集／下一集，在设置中可开启「播完自动播放下一集」。
 - 快捷键：空格播放／暂停，← → 跳转 5 秒，Shift + ← → 跳转 30 秒，↑ ↓ 音量，F 全屏，V 静音，P / N 上下集，⌘ / Ctrl + O 打开视频，[ / ] 调整字幕时间，M 精简模式。
+- 全屏时自动隐藏鼠标；移动鼠标后立即显示，静止 2.6 秒再次隐藏，退出全屏恢复正常显示。
 - 切换视频自动取消旧字幕任务，取消后的结果不会写入新视频；识别临时音频在任务结束后清理。
 
 ## 视频格式兼容
@@ -168,6 +173,8 @@ pnpm dev
 文件选择和文件夹扫描增加了 MTS、MPEG、VOB、3GP、RM/RMVB、MXF 等入口。实际可解码范围取决于随应用打包的 FFmpeg；格式后缀出现在列表中不代表每个编码变体都能播放。
 
 转换结果存于 Electron `userData/cache/transcoded`。缓存按源文件路径、大小、修改时间和处理模式区分；只发布完整成功的结果，取消或失败后删除临时文件。默认约 20 GB，按最近使用时间清理；当前播放的文件保留，因此单个超大视频可能使缓存暂时超过上限。
+
+媒体探测、重封装、音轨转换和完整转码共用一条队列，同一时间最多执行 1 个兼容处理任务。切换视频或点击「取消」会停止旧任务，等待其 FFmpeg 进程退出后再处理新视频；快速连续切换时，尚未开始的旧任务会直接跳过。正常退出窗口也会取消任务。已完成的缓存会保留，未完成的转码不能断点续传，再次打开时需要重新处理。取消转换不会解除当前播放缓存的保护，切换视频时才释放。
 
 ### 兼容性验证
 
@@ -202,7 +209,7 @@ Windows 版依赖 Windows 原生编译的 whisper.cpp / llama.cpp 二进制，**
 
 **方式二：本地 Windows 机器**
 
-前置：Git、Node 20+、pnpm 10、[Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)（C++ 桌面开发负载）或 MinGW、CMake。
+前置：Git、Node 22.12+、pnpm 10.26+、[Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)（C++ 桌面开发负载）或 MinGW、CMake。
 
 ```powershell
 .\scripts\build-win.ps1   # 一条命令：装依赖 → 编译 whisper/llama → 出 NSIS 安装包
