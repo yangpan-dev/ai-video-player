@@ -1,13 +1,28 @@
 name: Build Installers
 
+permissions:
+  contents: read
+  actions: read
+
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build
+        type: choice
+        default: all
+        options: [all, windows, macos]
+      windows_native_run_id:
+        description: Optional previous run with Windows engines to repackage
+        type: string
+        required: false
   push:
     tags:
       - 'v*'
 
 jobs:
   build-windows:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform != 'macos'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,15 +45,36 @@ jobs:
         run: pnpm run typecheck && pnpm test
 
       - name: Build whisper.cpp (Windows)
+        if: inputs.windows_native_run_id == ''
         run: pnpm run build:whisper
 
       - name: Build llama.cpp (Windows)
+        if: inputs.windows_native_run_id == ''
         run: pnpm run build:llama
 
-      - name: Build Windows installer
+      - uses: actions/download-artifact@v4
+        if: inputs.windows_native_run_id != ''
+        with:
+          name: local-ai-video-player-windows
+          path: .cache/previous-windows
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.windows_native_run_id }}
+
+      - name: Restore previously built Windows engines
+        if: inputs.windows_native_run_id != ''
+        shell: pwsh
         run: |
-          pnpm exec electron-vite build
-          pnpm exec electron-builder --win --x64 --publish never
+          $installer = Get-ChildItem .cache/previous-windows/*.exe | Select-Object -First 1
+          if (-not $installer) { throw 'Previous Windows installer missing' }
+          7z x $installer.FullName '-o.cache/reuse-installer' -y
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to extract installer' }
+          7z x '.cache/reuse-installer/$PLUGINSDIR/app-64.7z' '-o.cache/reuse-app' -y
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to extract application' }
+          New-Item -ItemType Directory resources/bin -Force | Out-Null
+          Copy-Item .cache/reuse-app/resources/bin/win32-x64 resources/bin -Recurse -Force
+
+      - name: Build Windows installer
+        run: pnpm run build:win
 
       - uses: actions/upload-artifact@v4
         with:
@@ -48,6 +84,7 @@ jobs:
             dist/*.blockmap
 
   build-macos:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform != 'windows'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
