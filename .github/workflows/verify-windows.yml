@@ -1,0 +1,46 @@
+name: Verify Windows Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful Build Installers run containing the Windows installer
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: local-ai-video-player-windows
+          path: .cache/windows-artifact
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run_id }}
+      - name: Verify packaged Windows application
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $installer = ".cache/windows-artifact/AIVideoPlayer.Setup.$version.exe"
+          if (-not (Test-Path $installer)) { throw 'Expected installer missing' }
+          7z x $installer '-o.cache/installer' -y
+          if ($LASTEXITCODE -ne 0) { throw 'Installer extraction failed' }
+          7z x '.cache/installer/$PLUGINSDIR/app-64.7z' '-o.cache/app' -y
+          if ($LASTEXITCODE -ne 0) { throw 'Application extraction failed' }
+          node scripts/verify-win-package.mjs .cache/app $installer
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged application verification failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-verification
+          path: |
+            .cache/windows-artifact/*.sha256
+            .cache/windows-artifact/*.verification.json
