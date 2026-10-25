@@ -14,16 +14,14 @@
 
 ## 📦 下载安装（已打包程序，无需编译）
 
-安装包发布在 [GitHub Releases](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.2.0)。本次更新说明见 [v0.2.0](releases/v0.2.0.md)。
+最新 macOS 安装包发布在 [GitHub Releases v0.2.1](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.2.1)，更新说明见 [v0.2.1](releases/v0.2.1.md)。Windows 安装包暂沿用 v0.2.0。
 
-源码 v0.2.1 的优化与本地打包说明见 [v0.2.1](releases/v0.2.1.md)。
-
-- macOS (Apple Silicon)：[AIVideoPlayer-0.2.0-arm64-mac.zip](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.2.0/AIVideoPlayer-0.2.0-arm64-mac.zip)
+- macOS (Apple Silicon)：[AIVideoPlayer-0.2.1-arm64-mac.zip](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.2.1/AIVideoPlayer-0.2.1-arm64-mac.zip)
 - Windows (x64)：[AIVideoPlayer.Setup.0.2.0.exe](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.2.0/AIVideoPlayer.Setup.0.2.0.exe)
 
 ### macOS（Apple Silicon）
 
-1. 下载 `AIVideoPlayer-0.2.0-arm64-mac.zip`。
+1. 下载 `AIVideoPlayer-0.2.1-arm64-mac.zip`。
 2. 双击解压，把 `AIVideoPlayer.app` 拖到「应用程序」文件夹。
 3. 首次打开若弹出「**Apple 无法验证 “AIVideoPlayer” 是否包含可能危害 Mac 安全或泄漏隐私的恶意软件**」，请任选其一放行（当前为免费 ad-hoc 签名、未做 Apple 公证，属正常现象）：
 
