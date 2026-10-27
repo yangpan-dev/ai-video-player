@@ -2,6 +2,8 @@
 
 拖入一部没有字幕的日语/英语视频，点击播放，AI 实时识别语音并生成**原文 + 中文字幕**，全程本地运行、不联网上传。
 
+macOS 原生播放器现已建立独立工程：[PandaPlayer（SwiftUI / AppKit + libmpv）](native-macos/README.md)。提供更广的视频格式支持、画面增强与原片对比，构建后可运行 `native-macos/build/PandaPlayer.app`。原生版的功能范围和运行依赖见其 README。
+
 ```
 用户拖入视频 → 点击播放/生成字幕
       ↓
