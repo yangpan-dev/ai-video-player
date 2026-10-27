@@ -13,6 +13,7 @@ const props = defineProps<{
   minimal?: boolean
   hasPrevious?: boolean
   hasNext?: boolean
+  settingsOpen?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -23,6 +24,7 @@ const emit = defineEmits<{
   (e: 'next'): void
   (e: 'ended'): void
   (e: 'pause'): void
+  (e: 'settings'): void
 }>()
 
 const videoEl = ref<HTMLVideoElement | null>(null)
@@ -32,14 +34,13 @@ const playerEl = ref<HTMLDivElement | null>(null)
 const currentTime = ref(0)
 const duration = ref(0)
 const isPlaying = ref(false)
-const { volume, muted, brightness, playbackRate, subtitleMode, fontSize, bottomMargin, autoNext } = toRefs(playerPreferences)
+const { volume, muted, brightness, playbackRate, subtitleMode, fontSize, bottomMargin, subtitleOffset } = toRefs(playerPreferences)
 
 // ---- 字幕设置（PotPlayer 风格）----
-const subtitleOffset = ref(0)
+
 
 // ---- UI 状态（IINA 风格）----
 const controlsVisible = ref(false)
-const showSettings = ref(false)
 const osd = ref<string | null>(null)
 const minimalBarVisible = ref(false)
 const cursorHidden = ref(false)
@@ -57,6 +58,7 @@ watch(
     isPlaying.value = false
   }
 )
+watch(playbackRate, (rate) => { if (videoEl.value) videoEl.value.playbackRate = rate })
 watch(volume, (v) => {
   if (videoEl.value) videoEl.value.volume = v
 })
@@ -168,12 +170,6 @@ function onVideoClick(): void {
   }, 250)
 }
 
-function setRate(r: number): void {
-  playbackRate.value = r
-  if (videoEl.value) videoEl.value.playbackRate = r
-  showOsd(r.toFixed(2).replace(/0+$/, '').replace(/\.$/, '') + 'x')
-}
-
 function seekBy(delta: number): void {
   const v = videoEl.value
   if (!v) return
@@ -209,7 +205,7 @@ function pokeControls(): void {
   controlsVisible.value = true
   if (hideTimer) clearTimeout(hideTimer)
   hideTimer = setTimeout(() => {
-    if (!showSettings.value) controlsVisible.value = false
+    if (!props.settingsOpen) controlsVisible.value = false
   }, 2600)
 }
 
@@ -295,14 +291,6 @@ function findActive(t: number): SubtitleSegment | null {
 const progress = computed(() => (duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0))
 // 音量/亮度滑块填充百分比（用于画出与播放进度一致的细进度条）
 const volumeFill = computed(() => `${(volume.value * 100).toFixed(0)}%`)
-const brightnessFill = computed(() => `${(((brightness.value - 0.4) / 1.2) * 100).toFixed(0)}%`)
-const MODE_OPTIONS: Array<{ v: 'bilingual' | 'original' | 'translation' | 'off'; label: string }> = [
-  { v: 'bilingual', label: '双语' },
-  { v: 'original', label: '仅原文' },
-  { v: 'translation', label: '仅译文' },
-  { v: 'off', label: '关闭' }
-]
-
 function fmtTime(s: number): string {
   if (!isFinite(s) || s < 0) s = 0
   const h = Math.floor(s / 3600)
@@ -315,6 +303,7 @@ function fmtTime(s: number): string {
 
 // ---- 键盘快捷键（IINA / PotPlayer 习惯）----
 function onKeydown(e: KeyboardEvent): void {
+  if (props.settingsOpen) return
   if (e.target instanceof HTMLElement && (e.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(e.target.tagName))) return
   if (e.ctrlKey || e.metaKey || e.altKey) return
   switch (e.key) {
@@ -457,115 +446,8 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <div class="vol brightness-control">
-        <span class="vol-icon" title="亮度">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="5"></circle>
-            <line x1="12" y1="1" x2="12" y2="3"></line>
-            <line x1="12" y1="21" x2="12" y2="23"></line>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-            <line x1="1" y1="12" x2="3" y2="12"></line>
-            <line x1="21" y1="12" x2="23" y2="12"></line>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-          </svg>
-        </span>
-        <input
-          v-model.number="brightness"
-          type="range"
-          min="0.4"
-          max="1.6"
-          step="0.05"
-          class="vol-slider"
-          title="亮度"
-          :style="{ '--fill': brightnessFill }"
-          @input="showOsd('亮度 ' + Math.round(brightness * 100) + '%')"
-        />
-      </div>
-
-      <div class="sub-sync">
-        <button class="icon-btn" title="字幕提前 5s" @click="adjustSubtitle(-5)">-5s</button>
-        <button class="icon-btn" title="字幕提前 0.5s" @click="adjustSubtitle(-0.5)">-0.5s</button>
-        <button class="icon-btn" title="字幕延迟 0.5s" @click="adjustSubtitle(0.5)">+0.5s</button>
-        <button class="icon-btn" title="字幕延迟 5s" @click="adjustSubtitle(5)">+5s</button>
-      </div>
-
-      <button class="icon-btn icon-lg" title="精简模式（只显示视频和字幕，M 切换）" @click="emit('toggleMinimal')">⧉</button>
       <button class="icon-btn icon-lg" title="全屏（双击画面亦可）" @click="toggleFullscreen">⛶</button>
-      <button class="icon-btn icon-lg" title="设置" @click="showSettings = !showSettings">⚙</button>
-    </div>
-
-    <!-- IINA 右侧设置抽屉 -->
-    <div v-show="!minimal" class="settings" :class="{ open: showSettings }">
-      <div class="settings-header">
-        <span>播放与字幕设置</span>
-        <button class="icon-btn" @click="showSettings = false">✕</button>
-      </div>
-
-      <div class="setting-group">
-        <div class="setting-label">显示模式</div>
-        <div class="mode-grid">
-          <button
-            v-for="m in MODE_OPTIONS"
-            :key="m.v"
-            class="seg-btn"
-            :class="{ active: subtitleMode === m.v }"
-            @click="subtitleMode = m.v"
-          >
-            {{ m.label }}
-          </button>
-        </div>
-      </div>
-
-      <div class="setting-group">
-        <div class="setting-label">字号（{{ fontSize }}px）</div>
-        <div class="row">
-          <button class="icon-btn" @click="fontSize = Math.max(12, fontSize - 2)">A-</button>
-          <button class="icon-btn" @click="fontSize = Math.min(48, fontSize + 2)">A+</button>
-        </div>
-      </div>
-
-      <div class="setting-group">
-        <div class="setting-label">垂直位置</div>
-        <div class="row">
-          <button class="icon-btn" title="上移" @click="bottomMargin = Math.min(220, bottomMargin + 20)">↑</button>
-          <button class="icon-btn" title="下移" @click="bottomMargin = Math.max(20, bottomMargin - 20)">↓</button>
-        </div>
-      </div>
-
-      <div class="setting-group">
-        <div class="setting-label">字幕同步（{{ subtitleOffset > 0 ? '+' : '' }}{{ subtitleOffset.toFixed(1) }}s）</div>
-        <div class="row">
-          <button class="icon-btn" @click="adjustSubtitle(-0.5)">-0.5s</button>
-          <button class="icon-btn" @click="adjustSubtitle(0.5)">+0.5s</button>
-          <button class="icon-btn" @click="subtitleOffset = 0">重置</button>
-        </div>
-      </div>
-
-      <div class="setting-group">
-        <div class="setting-label">播放速度</div>
-        <div class="speed-grid">
-          <button
-            v-for="r in [0.5, 0.75, 1, 1.25, 1.5, 2]"
-            :key="r"
-            class="seg-btn"
-            :class="{ active: playbackRate === r }"
-            @click="setRate(r)"
-          >
-            {{ r }}x
-          </button>
-        </div>
-      </div>
-      <div class="setting-group">
-        <label><input v-model="autoNext" type="checkbox" /> 播完自动播放下一集</label>
-      </div>
-      <div class="setting-group shortcut-help">
-        空格 播放 / 暂停 · ← → 快进退 5 秒<br />
-        Shift + ← → 快进退 30 秒 · ↑ ↓ 音量<br />
-        F 全屏 · V 静音 · P / N 上一集 / 下一集<br />
-        [ / ] 调整字幕时间 · M 精简模式
-      </div>
+      <button class="icon-btn icon-lg" title="设置" @click="emit('settings')" aria-label="设置">⚙</button>
     </div>
 
     <!-- 精简模式：鼠标移动唤出的临时控制条（右上角还原） -->
@@ -626,7 +508,8 @@ onBeforeUnmount(() => {
   background: linear-gradient(to top, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0));
 }
 .top-bar.visible,
-.control-bar.visible {
+.control-bar.visible,
+.control-bar:focus-within {
   opacity: 1;
 }
 .title {

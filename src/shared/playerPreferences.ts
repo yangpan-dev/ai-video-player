@@ -6,6 +6,7 @@ export interface PlayerPreferences {
   subtitleMode: 'bilingual' | 'original' | 'translation' | 'off'
   fontSize: number
   bottomMargin: number
+  subtitleOffset: number
   autoNext: boolean
 }
 
@@ -23,6 +24,7 @@ export function normalizePreferences(value: unknown): PlayerPreferences {
     subtitleMode: ['bilingual', 'original', 'translation', 'off'].includes(p.subtitleMode ?? '') ? p.subtitleMode! : 'bilingual',
     fontSize: number(p.fontSize, 20, 12, 48),
     bottomMargin: number(p.bottomMargin, 76, 20, 220),
+    subtitleOffset: number(p.subtitleOffset, 0, -60, 60),
     autoNext: p.autoNext === true
   }
 }

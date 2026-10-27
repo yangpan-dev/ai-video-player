@@ -13,6 +13,9 @@ import { playbackMode, type PlaybackMode, type ConversionMode } from '@shared/me
 import DropZone from './components/DropZone.vue'
 import VideoPlayer from './components/VideoPlayer.vue'
 import ControlPanel from './components/ControlPanel.vue'
+import AppSettings from './components/AppSettings.vue'
+import AppIcon from './components/AppIcon.vue'
+import appIcon from './assets/app-icon.png'
 import { playerPreferences } from './lib/preferences'
 
 interface LoadedVideo {
@@ -51,6 +54,16 @@ let lastSavedTime = -1
 const shouldAutoplay = ref(false)
 // 精简模式：只显示视频 + 字幕，隐藏侧栏/控制面板/状态栏
 const minimalMode = ref(false)
+const settingsVisible = ref(false)
+const sidebarVisible = ref(true)
+
+function startSubtitles(): void {
+  if (!models.value.find(m => m.name === selectedModel.value)?.installed || !llmModelReady.value) {
+    settingsVisible.value = true
+    return
+  }
+  void generate()
+}
 
 const pipelineState = ref<PipelineProgress>({ stage: 'idle', message: '', percent: 0 })
 const streamState = ref<StreamProgress>({ status: 'listening', message: '', percent: 0 })
@@ -688,6 +701,12 @@ function toggleMinimal(): void {
 }
 
 function onAppKeydown(e: KeyboardEvent): void {
+  if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+    e.preventDefault()
+    settingsVisible.value = true
+    return
+  }
+  if (settingsVisible.value) return
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') {
     e.preventDefault()
     void openDialog()
@@ -784,8 +803,27 @@ const busy = computed(
 
 <template>
   <div class="app">
+    <header v-show="!minimalMode" class="app-toolbar">
+      <button class="quiet-icon" title="显示或隐藏播放列表" aria-label="显示或隐藏播放列表" :aria-expanded="sidebarVisible" @click="sidebarVisible = !sidebarVisible"><AppIcon name="sidebar" /></button>
+      <img :src="appIcon" class="brand-icon" alt="" /><span class="brand-name">熊猫播放器</span>
+      <span class="current-title" :title="video?.sourcePath">{{ video?.sourcePath.split(/[\\/]/).pop() }}</span>
+      <div class="toolbar-actions">
+        <button class="quiet-icon" title="打开视频（⌘ / Ctrl + O）" aria-label="打开视频" @click="openDialog"><AppIcon name="folder" /></button>
+        <button v-if="running" class="ai-button" @click="cancel">停止生成</button>
+        <button v-else class="ai-button" :disabled="!video || video.needsRemux || translating || !!downloading" @click="startSubtitles"><AppIcon name="captions" />AI 字幕</button>
+        <details class="quick-menu">
+          <summary class="quiet-icon" title="字幕" aria-label="字幕菜单"><AppIcon name="captions" /></summary>
+          <div class="menu-items" @click="($event.target as HTMLElement).closest('button') && ($event.currentTarget as HTMLElement).closest('details')?.removeAttribute('open')">
+            <button :disabled="!video" @click="importSubtitles()">导入字幕…</button>
+            <button :disabled="!hasSegments || running || translating" @click="exportSubtitles">导出字幕…</button>
+            <button @click="settingsVisible = true">字幕设置…</button>
+          </div>
+        </details>
+        <button class="quiet-icon" title="设置（⌘ / Ctrl + ,）" aria-label="设置" @click="settingsVisible = true"><AppIcon name="settings" /></button>
+      </div>
+    </header>
     <div class="content">
-      <aside v-show="!minimalMode" class="sidebar">
+      <aside v-show="!minimalMode && sidebarVisible" class="sidebar">
         <div class="sidebar-tabs">
             <button
               class="tab"
@@ -805,17 +843,19 @@ const busy = computed(
 
           <div class="library-tools">
             <input v-model="librarySearch" type="search" placeholder="搜索视频…" aria-label="搜索视频" />
-            <label v-if="sidebarTab === 'playlist'" class="sort-option">
-              <input v-model="sortByName" type="checkbox" /> 按名称排序
-            </label>
+          </div>
+          <div class="library-add">
+            <details class="quick-menu">
+              <summary><AppIcon name="plus" />添加视频</summary>
+              <div class="menu-items" @click="($event.target as HTMLElement).closest('button') && ($event.currentTarget as HTMLElement).closest('details')?.removeAttribute('open')">
+                <button @click="addFiles">添加视频文件…</button>
+                <button @click="addFolder">添加文件夹（含子文件夹）…</button>
+                <button v-if="sidebarTab === 'playlist'" :disabled="!library.playlist.length" @click="clearPlaylistList">清空播放列表</button>
+                <button v-else :disabled="!library.history.length" @click="clearHistoryList">清空历史记录</button>
+              </div>
+            </details>
           </div>
           <div v-if="sidebarTab === 'playlist'" class="sidebar-body">
-            <button class="sidebar-action" title="打开视频（⌘ / Ctrl + O）" @click="openDialog">打开视频</button>
-            <button class="sidebar-action" @click="addFiles">🎬 添加视频文件</button>
-            <button class="sidebar-action" @click="addFolder">📁 添加文件夹（含子文件夹）</button>
-            <button v-if="library.playlist.length" class="sidebar-action sidebar-clear" @click="clearPlaylistList">
-              🗑 清空列表
-            </button>
             <div v-if="!library.playlist.length" class="sidebar-empty">播放列表为空</div>
             <div v-if="librarySearch && !visibleEntries.length" class="sidebar-empty">没有匹配的视频</div>
             <div v-for="e in visibleEntries" :key="e.path" class="sidebar-item" :class="{ active: isCurrentVideo(e.path) }">
@@ -827,9 +867,6 @@ const busy = computed(
           </div>
 
           <div v-if="sidebarTab === 'history'" class="sidebar-body">
-            <button v-if="library.history.length" class="sidebar-action" @click="clearHistoryList">
-              清空历史
-            </button>
             <div v-if="!library.history.length" class="sidebar-empty">暂无历史</div>
             <div v-if="librarySearch && !visibleEntries.length" class="sidebar-empty">没有匹配的视频</div>
             <div v-for="e in visibleEntries" :key="e.path" class="sidebar-item" :class="{ active: isCurrentVideo(e.path) }">
@@ -839,18 +876,7 @@ const busy = computed(
             </div>
           </div>
 
-          <div class="sidebar-footer">
-            <span class="cache-label" :title="cacheInfo?.dir">
-              转换缓存：{{ cacheInfo ? fmtBytes(cacheInfo.totalBytes) : '…' }}
-            </span>
-            <button
-              class="sidebar-cache-clear"
-              :disabled="probing || remuxing || transcoding || !cacheInfo || cacheInfo.totalBytes === 0"
-              @click="clearTranscodeCache"
-            >
-              清理
-            </button>
-          </div>
+          <div class="sidebar-footer">{{ sidebarTab === 'playlist' ? library.playlist.length : library.history.length }} 个视频</div>
         </aside>
 
         <div class="player-area">
@@ -858,28 +884,6 @@ const busy = computed(
             <DropZone @browse="openDialog" />
           </template>
           <template v-else>
-      <ControlPanel
-        v-show="!minimalMode"
-        :models="models"
-        v-model:selected-model="selectedModel"
-        v-model:mode="mode"
-        :running="running"
-        :translating="translating"
-        :has-segments="hasSegments"
-        :needs-remux="video.needsRemux"
-        :detected-language="detectedLanguage"
-        :download-state="downloading"
-        :llm-model-ready="llmModelReady"
-        :disabled="video.needsRemux"
-        @download="onDownload"
-        @download-llm="downloadLlm"
-        @generate="generate"
-        @cancel="cancel"
-        @export="exportSubtitles"
-        @remux="remux"
-        @import="importSubtitles()"
-      />
-
       <main class="main">
         <VideoPlayer
           v-if="!video.needsRemux"
@@ -899,6 +903,8 @@ const busy = computed(
           @next="playAdjacent(1)"
           @ended="onPlayerEnded"
           @pause="saveCurrentProgress"
+          @settings="settingsVisible = true"
+          :settings-open="settingsVisible"
         />
         <div v-else class="remux-hint">
           <div class="remux-hint-icon">⚠️</div>
@@ -929,6 +935,7 @@ const busy = computed(
           </div>
         </div>
       </main>
+          </template>
 
       <footer class="status" v-show="!minimalMode" v-if="busy || error || statusMsg">
         <div v-if="running && mode === 'batch'" class="bar">
@@ -969,16 +976,40 @@ const busy = computed(
           <span class="bar-pct">{{ downloading.percent }}%</span>
         </div>
 
-        <div v-if="error" class="error">{{ error }}</div>
-        <div v-if="statusMsg && !error" class="ok">{{ statusMsg }}</div>
+        <div v-if="error" class="error">{{ error }} <button class="mini-log" @click="error = null">关闭</button></div>
+        <div v-if="statusMsg && !error" class="ok">{{ statusMsg }} <button class="mini-log" @click="statusMsg = ''">关闭</button></div>
       </footer>
-          </template>
         </div>
     </div>
+    <AppSettings v-if="settingsVisible" :cache-size="cacheInfo ? fmtBytes(cacheInfo.totalBytes) : '…'" :cache-disabled="probing || remuxing || transcoding || !cacheInfo || cacheInfo.totalBytes === 0" v-model:sort-by-name="sortByName" @close="settingsVisible = false" @clear-cache="clearTranscodeCache" @toggle-minimal="settingsVisible = false; toggleMinimal()">
+      <ControlPanel
+        :models="models"
+        v-model:selected-model="selectedModel"
+        v-model:mode="mode"
+        :running="running"
+        :translating="translating"
+        :detected-language="detectedLanguage"
+        :download-state="downloading"
+        :llm-model-ready="llmModelReady"
+        @download="onDownload"
+        @download-llm="downloadLlm"
+      />
+
+    </AppSettings>
   </div>
 </template>
 
 <style scoped>
+.app-toolbar { display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 0 16px; border-bottom: 1px solid var(--border); }
+.brand-icon { width: 28px; height: 28px; }
+.brand-name { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.current-title { flex: 1; min-width: 0; font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 12px; }
+.toolbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.ai-button { display: flex; align-items: center; gap: 7px; background: #4f8cff15; color: var(--accent); border: 0; font-size: 12px; }
+.library-add { padding: 0 12px 12px; }
+.library-add summary { justify-content: center; padding: 9px; background: #ffffff06; border-radius: 8px; color: var(--text-dim); font-size: 12px; }
+.library-add .menu-items { left: 0; right: auto; }
+
 .library-tools { padding: 10px 12px; display: grid; gap: 8px; }
 .library-tools > input {
   min-width: 0; width: 100%; padding: 8px 10px; color: var(--text);

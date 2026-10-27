@@ -1,15 +1,16 @@
 <script setup lang="ts">
+import appIcon from '../assets/app-icon.png'
 defineEmits<{ (e: 'browse'): void }>()
 </script>
 
 <template>
   <div class="dropzone">
     <div class="dropzone-inner">
-      <div class="dropzone-icon">🎬</div>
-      <h1>AIVideoPlayer</h1>
-      <p class="hint">拖入一部没有字幕的日语 / 英语视频</p>
-      <p class="sub">点击播放 → AI 实时识别 → 原文字幕 → 中文字幕</p>
-      <button class="primary" @click="$emit('browse')">选择视频文件</button>
+      <img :src="appIcon" class="dropzone-icon" alt="熊猫播放器图标" />
+      <h1>熊猫播放器</h1>
+      <p class="hint">拖入视频或文件夹即可开始</p>
+      <p class="sub">本地播放 · AI 双语字幕</p>
+      <button class="primary" @click="$emit('browse')">打开视频</button>
     </div>
   </div>
 </template>
@@ -25,12 +26,13 @@ defineEmits<{ (e: 'browse'): void }>()
   text-align: center;
   max-width: 460px;
   padding: 40px;
-  border: 2px dashed var(--border);
+
   border-radius: 16px;
-  background: var(--bg-panel);
+
 }
 .dropzone-icon {
-  font-size: 56px;
+  width: 112px;
+  height: 112px;
   margin-bottom: 12px;
 }
 h1 {

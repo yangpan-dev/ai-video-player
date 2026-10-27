@@ -76,12 +76,26 @@ jobs:
       - name: Build Windows installer
         run: pnpm run build:win
 
+      - name: Verify extracted Windows installer and AI engines
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $installer = "dist/PandaPlayer.Setup.$version.exe"
+          7z x $installer '-o.cache/verify-installer' -y
+          if ($LASTEXITCODE -ne 0) { throw 'Installer extraction failed' }
+          7z x '.cache/verify-installer/$PLUGINSDIR/app-64.7z' '-o.cache/verify-app' -y
+          if ($LASTEXITCODE -ne 0) { throw 'Application extraction failed' }
+          node scripts/verify-win-package.mjs .cache/verify-app $installer
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged application verification failed' }
+
       - uses: actions/upload-artifact@v4
         with:
           name: local-ai-video-player-windows
           path: |
             dist/*.exe
             dist/*.blockmap
+            dist/*.sha256
+            dist/*.verification.json
 
   build-macos:
     if: github.event_name != 'workflow_dispatch' || inputs.platform != 'windows'

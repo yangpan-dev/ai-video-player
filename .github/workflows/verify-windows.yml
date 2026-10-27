@@ -30,7 +30,7 @@ jobs:
         shell: pwsh
         run: |
           $version = (Get-Content package.json | ConvertFrom-Json).version
-          $installer = ".cache/windows-artifact/AIVideoPlayer.Setup.$version.exe"
+          $installer = ".cache/windows-artifact/PandaPlayer.Setup.$version.exe"
           if (-not (Test-Path $installer)) { throw 'Expected installer missing' }
           7z x $installer '-o.cache/installer' -y
           if ($LASTEXITCODE -ne 0) { throw 'Installer extraction failed' }

@@ -1,4 +1,4 @@
-# PandaPlayer · 原生 macOS 视频播放器
+# 熊猫播放器 · 原生 macOS 版
 
 独立于 Electron 版本的 Swift 工程。使用 SwiftUI / AppKit 构建界面，libmpv 实时解码和渲染视频，不需要先把整部电影转换为 MP4。
 
@@ -16,7 +16,7 @@
 - 后台递归扫描多层子文件夹，按完整路径自然排序，重叠目录与重复文件自动去重，无 10,000 文件截断。
 - Whisper + Qwen 完全本地识别翻译：流式逐段、整片批量、导入 SRT/VTT 后翻译，双语 / 原文 / 中文字幕及 SRT/VTT 导出。
 - 识别语言选择、模型下载与目录选择、字幕缓存恢复、切换视频取消旧任务、退出清理 AI 进程。
-- PandaPlayer 熊猫播放图标（PNG 与 ICNS），兼容旧版已有模型与 Lumen 播放列表。
+- 原生版与 Vue 版统一使用「熊猫 + 播放三角 + 视频进度条」图标（PNG / ICNS / ICO），兼容旧版已有模型与 Lumen 播放列表。
 
 画质增强是实时缩放和画面后处理，**尚未包含神经网络超分辨率、补帧或 AI 修复**。识别和翻译已迁入；AI 引擎与 FFmpeg 随应用打包，模型首次按需下载，或复用旧版已下载模型，不将视频上传到网络。
 
@@ -40,10 +40,10 @@ node scripts/prepare-mac-resources.mjs
 ```bash
 cd native-macos
 ./scripts/build-app.sh
-open build/PandaPlayer.app
+open build/熊猫播放器.app
 ```
 
-构建产物：`native-macos/build/PandaPlayer.app`。首次编译系统 SwiftUI 模块可能需要较长时间。
+构建产物：`native-macos/build/熊猫播放器.app`。首次编译系统 SwiftUI 模块可能需要较长时间。
 
 播放器动态寻找引擎，顺序为：
 
@@ -64,7 +64,7 @@ open build/PandaPlayer.app
 ./scripts/package-mac.sh
 ```
 
-产物位于 `dist/PandaPlayer-0.2.1-arm64-mac.dmg` 和同名 ZIP。默认优先查找 Homebrew 的 libmpv，本机没有时使用已安装 IINA 的播放运行库。安装后不再依赖 IINA、旧版播放器或 Homebrew。仅复制所需动态库，保留来源与依赖致谢，并检查包内链接和签名。当前完整包面向 Apple Silicon，最低 macOS 26；未作 Apple 公证。
+产物位于 `dist/PandaPlayer-0.3.0-arm64-mac.dmg` 和同名 ZIP。默认优先查找 Homebrew 的 libmpv，本机没有时使用已安装 IINA 的播放运行库。安装后不再依赖 IINA、旧版播放器或 Homebrew。仅复制所需动态库，保留来源与依赖致谢，并检查包内链接和签名。当前完整包面向 Apple Silicon，最低 macOS 26；未作 Apple 公证。
 
 准备自己可再分发的 libmpv 构建，然后：
 
@@ -76,7 +76,7 @@ CONFIGURATION=release BUNDLE_MPV=1 \
 
 脚本递归打包非系统 dylib、调整加载路径，并作本机 ad-hoc 签名。**公开发布前**需要检查 mpv / FFmpeg 等实际构建的许可证、附上所需许可和源码材料，并完成 Developer ID 签名与公证。现有仓库的 MIT 声明不能覆盖这些依赖；详见 [THIRD_PARTY.md](THIRD_PARTY.md)。一键打包只在本地生成文件，不上传或发布。
 
-## 简洁界面（0.2.1）
+## 简洁界面（0.3.0）
 
 主界面保留视频、播放列表、播放控制和 AI 字幕按钮。顶部参数栏、常驻模型信息、媒体信息行与重复说明已收起，空闲时不显示任务状态。
 

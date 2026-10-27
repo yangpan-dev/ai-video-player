@@ -23,10 +23,16 @@ app.whenReady().then(async () => {
   try {
     protocol.handle('media', mediaHandler)
     registerIpc()
+    // Keep model readiness deterministic; recognition/translation are mocked below.
+    electron.ipcMain.removeHandler('models:list')
+    electron.ipcMain.handle('models:list', () => [{ name: 'large-v3-turbo', label: 'Turbo', installed: true, sizeMb: 1 }])
+    electron.ipcMain.removeHandler('llm:status')
+    electron.ipcMain.handle('llm:status', () => ({ modelExists: true, running: false }))
     for (const item of manifest.outputs) addToPlaylist(item.source, item.name)
     win = new BrowserWindow({ width: 1280, height: 820, show: false, webPreferences: { preload: resolve('out/preload/index.js'), sandbox: false, contextIsolation: true, nodeIntegration: false } })
     await win.loadFile(resolve('out/renderer/index.html'))
     await delay(300)
+    if (process.env.PLAYER_UI_OUTPUT) writeFileSync(join(process.env.PLAYER_UI_OUTPUT, 'welcome.png'), (await win.webContents.capturePage()).toPNG())
     for (const item of manifest.outputs) {
       await win.webContents.executeJavaScript(`(() => {
         const item = [...document.querySelectorAll('.sidebar-item-title')].find(e => e.title === ${JSON.stringify(item.source)});
@@ -53,6 +59,7 @@ app.whenReady().then(async () => {
       })`)
       console.log(`PASS renderer auto-open/play/seek: ${item.name}`)
     }
+    if (process.env.PLAYER_UI_OUTPUT) writeFileSync(join(process.env.PLAYER_UI_OUTPUT, 'playing.png'), (await win.webContents.capturePage()).toPNG())
     // Fault injection exercises device-dependent decode failure after direct/remux startup.
     for (const name of ['normal.mp4', 'copy.mkv']) {
       const item = manifest.outputs.find((o) => o.name === name)
@@ -110,7 +117,8 @@ app.whenReady().then(async () => {
     writeFileSync(subtitle, 'WEBVTT\n\n00:00.000 --> 00:04.000\nImported line one\n第二行字幕')
     electron.dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [subtitle] })
     await win.webContents.executeJavaScript(`(() => {
-      [...document.querySelectorAll('button')].find(e => e.textContent.trim() === '导入字幕').click();
+      document.querySelector('summary[aria-label="字幕菜单"]').click();
+      [...document.querySelectorAll('button')].find(e => e.textContent.trim() === '导入字幕…').click();
     })()`)
     await delay(200)
     assert.match(await win.webContents.executeJavaScript(`document.querySelector('.subtitle-overlay')?.textContent`), /Imported line one\s+第二行字幕/)
@@ -118,8 +126,18 @@ app.whenReady().then(async () => {
 
     await win.webContents.executeJavaScript(`(() => {
       const volume = document.querySelector('input[title="音量"]'); volume.value = '0.35'; volume.dispatchEvent(new Event('input', { bubbles: true }));
-      [...document.querySelectorAll('.speed-grid button')].find(e => e.textContent.trim() === '1.5x').click();
+      document.querySelector('button[aria-label="设置"]').click();
       document.querySelector('button[aria-label="切换静音"]').click();
+    })()`)
+    await delay(50)
+    await win.webContents.executeJavaScript(`(() => {
+      [...document.querySelectorAll('.app-settings nav button')].find(e => e.textContent === '播放').click();
+    })()`)
+    await delay(50)
+    if (process.env.PLAYER_UI_OUTPUT) writeFileSync(join(process.env.PLAYER_UI_OUTPUT, 'settings.png'), (await win.webContents.capturePage()).toPNG())
+    await win.webContents.executeJavaScript(`(() => {
+      const speed = document.querySelector('select[aria-label="播放速度"]'); speed.value = '1.5'; speed.dispatchEvent(new Event('change', { bubbles: true }));
+      document.querySelector('button[aria-label="关闭设置"]').click();
     })()`)
     await select(manifest.outputs.find(o => o.name === 'av1.mp4').source)
     let settings = await win.webContents.executeJavaScript(`(() => { const v = document.querySelector('video'); return { volume: v.volume, rate: v.playbackRate, muted: v.muted }; })()`)
@@ -143,15 +161,25 @@ app.whenReady().then(async () => {
     const order = await win.webContents.executeJavaScript(`[...document.querySelectorAll('.sidebar-item-title')].map(e => e.title)`)
     await select(order[0])
     await win.webContents.executeJavaScript(`(() => {
-      const input = document.querySelector('.settings input[type="checkbox"]'); input.click();
+      document.querySelector('button[aria-label="设置"]').click();
+    })()`)
+    await delay(50)
+    await win.webContents.executeJavaScript(`[...document.querySelectorAll('.app-settings nav button')].find(e => e.textContent === '播放').click()`)
+    await delay(50)
+    await win.webContents.executeJavaScript(`(() => {
+      document.querySelector('input[aria-label="自动播放下一个"]').click();
+      document.querySelector('button[aria-label="关闭设置"]').click();
       document.querySelector('video').dispatchEvent(new Event('ended'));
     })()`)
     await delay(400)
     assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.sidebar-item.active .sidebar-item-title')?.title`), order[1])
     assert.equal(await win.webContents.executeJavaScript(`window.api.getProgress(${JSON.stringify(order[0])})`), 0)
-    await win.webContents.executeJavaScript(`document.querySelector('.settings input[type="checkbox"]').click()`)
+    await win.webContents.executeJavaScript(`localStorage.setItem('aivideo-player.preferences.v1', JSON.stringify({ volume: 0.35, playbackRate: 1.5, muted: true, autoNext: false }))`)
+    await win.loadFile(resolve('out/renderer/index.html'))
+    await delay(150)
     console.log('PASS search, automatic next episode and completion progress reset')
 
+    await select(manifest.outputs[1].source)
     // Artificially delay an old AI task and its translation across a source switch.
     let oldRequest
     let finishRecognition
@@ -165,13 +193,14 @@ app.whenReady().then(async () => {
     electron.ipcMain.removeHandler('llm:translate')
     electron.ipcMain.handle('llm:translate', () => new Promise(resolve => { finishTranslation = resolve }))
     await win.webContents.executeJavaScript(`(() => {
-      [...document.querySelectorAll('button')].find(e => e.textContent.trim() === '开始实时识别').click();
+      [...document.querySelectorAll('button')].find(e => e.textContent.trim() === 'AI 字幕').click();
     })()`)
     await delay(150)
     assert.ok(oldRequest && finishTranslation)
     await select(last.source)
     await win.webContents.executeJavaScript(`(() => {
-      [...document.querySelectorAll('button')].find(e => e.textContent.trim() === '导入字幕').click();
+      document.querySelector('summary[aria-label="字幕菜单"]').click();
+      [...document.querySelectorAll('button')].find(e => e.textContent.trim() === '导入字幕…').click();
     })()`)
     await delay(100)
     win.webContents.send('stream:segment', { requestId: oldRequest, data: { index: 0, start: 0, end: 4, text: 'STALE' } })
@@ -223,7 +252,11 @@ app.whenReady().then(async () => {
     await moveMouse()
     await delay(1500)
     assert.ok((await cursors()).every(cursor => cursor !== 'none'), 'movement must restart the idle timer')
-    await delay(1300)
+    // Native fullscreen can emit another mousemove while the window settles.
+    for (let n = 0; n < 50; n++) {
+      if ((await cursors()).every(cursor => cursor === 'none')) break
+      await delay(100)
+    }
     assert.deepEqual(await cursors(), Array(5).fill('none'))
     await win.webContents.executeJavaScript(`document.exitFullscreen()`)
     await delay(150)

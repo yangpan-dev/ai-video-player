@@ -43,11 +43,13 @@ test('external UTF-16 subtitles and adjacent VTT files load without AI', () => {
 })
 
 test('stored preferences reject invalid values and clamp numeric settings', () => {
-  const p = normalizePreferences({ volume: 9, muted: 'yes', playbackRate: -1, fontSize: NaN, subtitleMode: 'bad' })
+  const p = normalizePreferences({ volume: 9, muted: 'yes', playbackRate: -1, fontSize: NaN, subtitleMode: 'bad', subtitleOffset: Infinity })
   assert.equal(p.volume, 1)
   assert.equal(p.muted, false)
   assert.equal(p.playbackRate, 0.25)
   assert.equal(p.fontSize, 20)
   assert.equal(p.subtitleMode, 'bilingual')
+  assert.equal(p.subtitleOffset, 0)
+  assert.equal(normalizePreferences({ subtitleOffset: 120 }).subtitleOffset, 60)
   assert.equal(normalizePreferences(null).autoNext, false)
 })

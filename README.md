@@ -1,8 +1,8 @@
-# 本地 AI 视频播放器（Mac + Windows）
+# 熊猫播放器（macOS + Windows）
 
 拖入一部没有字幕的日语/英语视频，点击播放，AI 实时识别语音并生成**原文 + 中文字幕**，全程本地运行、不联网上传。
 
-macOS 原生播放器现已建立独立工程：[PandaPlayer（SwiftUI / AppKit + libmpv）](native-macos/README.md)。提供更广的视频格式支持、画面增强与原片对比，构建后可运行 `native-macos/build/PandaPlayer.app`。原生版的功能范围和运行依赖见其 README。
+macOS 原生播放器现已建立独立工程：[熊猫播放器原生版（SwiftUI / AppKit + libmpv）](native-macos/README.md)。提供更广的视频格式支持、画面增强与原片对比，构建后可运行 `native-macos/build/熊猫播放器.app`。原生版的功能范围和运行依赖见其 README。
 
 ```
 用户拖入视频 → 点击播放/生成字幕
@@ -16,25 +16,30 @@ macOS 原生播放器现已建立独立工程：[PandaPlayer（SwiftUI / AppKit 
 
 ## 📦 下载安装（已打包程序，无需编译）
 
-最新 macOS / Windows 安装包发布在 [GitHub Releases v0.2.1](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.2.1)，更新说明见 [v0.2.1](releases/v0.2.1.md)。
+最新 macOS / Windows 安装包发布在 [GitHub Releases v0.3.0](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.3.0)，更新说明见 [v0.3.0](releases/v0.3.0.md)。
 
-- macOS (Apple Silicon)：[AIVideoPlayer-0.2.1-arm64-mac.zip](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.2.1/AIVideoPlayer-0.2.1-arm64-mac.zip)
-- Windows (x64)：[AIVideoPlayer.Setup.0.2.1.exe](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.2.1/AIVideoPlayer.Setup.0.2.1.exe)
+| 版本 | 安装包 |
+| --- | --- |
+| macOS 原生版（Apple Silicon，macOS 26+） | [DMG](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.0/PandaPlayer-0.3.0-arm64-mac.dmg) · [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.0/PandaPlayer-0.3.0-arm64-mac.zip) |
+| macOS Vue / Electron 版（Apple Silicon，完整 AI 引擎需 macOS 26+） | [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.0/PandaPlayer-Electron-0.3.0-arm64-mac.zip) |
+| Windows Vue / Electron 版（x64） | [安装程序](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.0/PandaPlayer.Setup.0.3.0.exe) |
+
+两版均显示「熊猫播放器」，使用同一张原生 Mac 风格熊猫播放图标。主界面保留视频、列表、播放控制和 AI 字幕入口；模型管理、识别模式、亮度、字幕字号 / 位置 / 时间偏移、自动下一集和缓存清理统一放到设置（`⌘ / Ctrl + ,`）。旧版模型、列表和观看进度保留原路径，升级无需重新下载模型。
 
 ### macOS（Apple Silicon）
 
-1. 下载 `AIVideoPlayer-0.2.1-arm64-mac.zip`。
-2. 双击解压，把 `AIVideoPlayer.app` 拖到「应用程序」文件夹。
-3. 首次打开若弹出「**Apple 无法验证 “AIVideoPlayer” 是否包含可能危害 Mac 安全或泄漏隐私的恶意软件**」，请任选其一放行（当前为免费 ad-hoc 签名、未做 Apple 公证，属正常现象）：
+1. 下载原生版 DMG 后，将应用拖到「应用程序」；使用 ZIP 时先解压。
+2. 应用名为 `熊猫播放器.app`。两种 macOS 版本择一安装到「应用程序」。
+3. 首次打开若弹出「**Apple 无法验证 “熊猫播放器” 是否包含可能危害 Mac 安全或泄漏隐私的恶意软件**」，请任选其一放行（当前为免费 ad-hoc 签名、未做 Apple 公证，属正常现象）：
 
    - **方式 A（右键打开）**：在「应用程序」文件夹里**右键点击 App →「打开」→ 弹窗再点「打开」**。
    - **方式 B（系统设置放行）**：若右键没有「打开」按钮（macOS Sequoia 15 及以上常见），按下面操作：
      1. 先尝试打开一次，让它被拦截；
      2. 打开 **系统设置 → 隐私与安全性**；
-     3. 在「安全性」一栏找到「AIVideoPlayer 已被阻止使用」的提示，点 **「仍要打开」**，输入密码确认。
+     3. 在「安全性」一栏找到「熊猫播放器 已被阻止使用」的提示，点 **「仍要打开」**，输入密码确认。
    - **方式 C（终端去除隔离属性，最彻底）**：打开「终端」粘贴并回车，直接移除下载时附加的隔离标记：
      ```bash
-     xattr -dr com.apple.quarantine /Applications/AIVideoPlayer.app
+     xattr -dr com.apple.quarantine /Applications/熊猫播放器.app
      ```
      执行后双击即可正常打开（每次重新下载/替换 App 后需再执行一次）。
 
@@ -43,7 +48,7 @@ macOS 原生播放器现已建立独立工程：[PandaPlayer（SwiftUI / AppKit 
 
 ### Windows（x64）
 
-1. 下载 `AIVideoPlayer.Setup.0.2.1.exe`。
+1. 下载 `PandaPlayer.Setup.0.3.0.exe`。
 2. 双击运行安装程序，按提示完成安装。
 3. 若 Windows SmartScreen 拦截（当前为未签名安装包），点「更多信息 → 仍要运行」。
 4. 首次使用请在应用内下载模型（同 macOS）。
@@ -53,7 +58,7 @@ macOS 原生播放器现已建立独立工程：[PandaPlayer（SwiftUI / AppKit 
 已内置 Cask 文件 `homebrew/Casks/ai-video-player.rb`，可自行搭建 tap 仓库分发，详见 [`homebrew/README.md`](homebrew/README.md)。
 
 > 安装程序默认**不内置**识别/翻译模型（体积过大）。首次运行请联网下载一次，之后完全离线。
-> 模型存放位置：macOS `~/Library/Application Support/AIVideoPlayer/models`，Windows `%APPDATA%\AIVideoPlayer\models`。
+> Vue 版继续保留旧目录名以兼容升级。原生版数据位于 `~/Library/Application Support/PandaPlayer`，并可复用 Vue 版模型。Vue 版模型存放位置：macOS `~/Library/Application Support/local-ai-video-player/models`，Windows `%APPDATA%\local-ai-video-player\models`。旧安装的实际目录以原配置为准。
 > 若国内下载模型失败，应用会自动走镜像 `hf-mirror.com`。
 
 ## 技术栈

@@ -21,7 +21,7 @@ async function api(url, options = {}) {
   const response = await fetch(u, {
     ...options, redirect: 'error', signal: AbortSignal.timeout(15 * 60 * 1000),
     headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`,
-      'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'AIVideoPlayer-release', ...options.headers }
+      'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'PandaPlayer-release', ...options.headers }
   })
   if (response.status === 404 && options.allow404) return null
   if (!response.ok) throw new Error(`GitHub API ${response.status}: ${(await response.json()).message ?? 'request failed'}`)
@@ -50,7 +50,7 @@ async function uploadAsset(url, path) {
     })
     child.stdin.end([
       `Authorization: Bearer ${token}`, 'Accept: application/vnd.github+json',
-      'X-GitHub-Api-Version: 2022-11-28', 'User-Agent: AIVideoPlayer-release',
+      'X-GitHub-Api-Version: 2022-11-28', 'User-Agent: PandaPlayer-release',
       'Content-Type: application/octet-stream', 'Expect:', ''
     ].join('\n'))
   })
@@ -81,7 +81,7 @@ if (!release) {
 if (release && !release.draft) throw new Error('This version is already published; do not overwrite it')
 if (!release) release = await api(`${base}/releases`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ tag_name: tag, target_commitish: commit, name: `AIVideoPlayer ${tag}`, body, draft: true, prerelease: false })
+  body: JSON.stringify({ tag_name: tag, target_commitish: commit, name: `熊猫播放器 ${tag}`, body, draft: true, prerelease: false })
 })
 const hash = async (path) => {
   const h = createHash('sha256')

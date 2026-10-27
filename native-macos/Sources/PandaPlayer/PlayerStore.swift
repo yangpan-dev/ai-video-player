@@ -159,7 +159,7 @@ final class PlayerStore: ObservableObject {
         resolution = ""; codec = ""; tracks = []; audioID = 0; subtitleID = 0
         pendingResume = progress[item.id]; error = nil
         recent.removeAll { $0.id == item.id }; recent.insert(item, at: 0); recent = Array(recent.prefix(100))
-        window?.title = "\(item.title) — PandaPlayer"
+        window?.title = "\(item.title) — 熊猫播放器"
         engine.open(item.url)
         engine.set("pause", "no")
         save()

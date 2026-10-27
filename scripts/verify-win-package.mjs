@@ -20,7 +20,7 @@ const engines = ['whisper-cli.exe', 'whisper-server.exe', 'llama-server.exe']
 for (const name of [...engines, 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll', 'vcomp140.dll', 'libssl-3-x64.dll', 'libcrypto-3-x64.dll']) {
   if (!existsSync(join(native, name))) throw new Error(`安装包缺少 ${name}`)
 }
-const binaries = [join(app, 'AIVideoPlayer.exe'),
+const binaries = [join(app, 'PandaPlayer.exe'),
   join(app, 'resources', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'ffmpeg.exe'),
   ...readdirSync(native).filter(name => /\.(exe|dll)$/i.test(name)).map(name => join(native, name))]
 for (const path of binaries) {

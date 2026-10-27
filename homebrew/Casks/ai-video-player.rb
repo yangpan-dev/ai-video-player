@@ -1,17 +1,17 @@
 cask "ai-video-player" do
-  version "0.2.1"
-  sha256 "d261285ecc903a8bd03ba93dff690a082e8bfaa0dffc57342abc982b9b26ec74"
+  version "0.3.0"
+  sha256 "7625946a77c9eb1d564cbf3a8555e28f94ca4169107c1cfc9a733a0b4a7beae8"
 
-  url "https://github.com/yangpan-dev/ai-video-player/releases/download/v#{version}/AIVideoPlayer-#{version}-arm64-mac.zip"
-  name "AIVideoPlayer"
+  url "https://github.com/yangpan-dev/ai-video-player/releases/download/v#{version}/PandaPlayer-#{version}-arm64-mac.zip"
+  name "熊猫播放器"
   desc "本地 AI 视频播放器：无字幕日语/英语视频实时生成原文 + 中文字幕（完全离线）"
   homepage "https://github.com/yangpan-dev/ai-video-player"
 
   # Apple Silicon 专用（whisper.cpp 为 arm64 Metal 构建）
   depends_on arch: :arm64
-  depends_on macos: ">= :monterey"
+  depends_on macos: ">= 26"
 
-  app "AIVideoPlayer.app"
+  app "熊猫播放器.app"
 
   # 首次启动需要联网下载 Whisper 模型与 Qwen 翻译模型，后续离线可用
   caveats <<~EOS
@@ -20,7 +20,7 @@ cask "ai-video-player" do
   EOS
 
   zap trash: [
-    "~/Library/Application Support/AIVideoPlayer",
-    "~/Library/Caches/AIVideoPlayer"
+    "~/Library/Application Support/PandaPlayer",
+    "~/Library/Caches/dev.panda.player"
   ]
 end

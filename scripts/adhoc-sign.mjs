@@ -5,7 +5,7 @@
  * Gatekeeper「无法验证开发者」提示（那需要 $99/年的 Developer ID + 公证）。
  *
  * 用法：node scripts/adhoc-sign.mjs [app路径]
- * 默认：dist/mac-arm64/LocalAIVideoPlayer.app
+ * 默认：dist/mac-arm64/熊猫播放器.app
  */
 import { execFileSync } from 'node:child_process'
 import { closeSync, existsSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs'
@@ -16,8 +16,10 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 // 自动检测 dist/mac-arm64 下的 .app（若指定了路径则优先）
 function defaultAppPath() {
   const dir = join(root, 'dist', 'mac-arm64')
+  const preferred = join(dir, '熊猫播放器.app')
+  if (existsSync(preferred)) return preferred
   const found = readdirSync(dir).find((n) => n.endsWith('.app'))
-  return found ? join(dir, found) : join(dir, 'AIVideoPlayer.app')
+  return found ? join(dir, found) : join(dir, '熊猫播放器.app')
 }
 const appPath = resolve(process.argv[2] ?? defaultAppPath())
 

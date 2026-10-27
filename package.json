@@ -1,7 +1,7 @@
 {
   "name": "local-ai-video-player",
-  "version": "0.2.1",
-  "description": "Mac + Windows 本地 AI 视频播放器：无字幕日语/英语视频实时生成原文 + 中文字幕",
+  "version": "0.3.0",
+  "description": "熊猫播放器：本地视频播放与 AI 双语字幕",
   "main": "./out/main/index.js",
   "author": "",
   "license": "MIT",

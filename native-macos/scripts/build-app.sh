@@ -7,7 +7,7 @@ export CLANG_MODULE_CACHE_PATH="$PWD/.build/clang-cache"
 export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/.build/swift-cache"
 swift build -c "$configuration" --build-system native --disable-sandbox --cache-path "$PWD/.build/cache" --config-path "$PWD/.build/config" --security-path "$PWD/.build/security"
 binary_dir="$(swift build -c "$configuration" --build-system native --disable-sandbox --cache-path "$PWD/.build/cache" --config-path "$PWD/.build/config" --security-path "$PWD/.build/security" --show-bin-path)"
-app="$PWD/build/staging/PandaPlayer.app"
+app="$PWD/build/staging/熊猫播放器.app"
 if [ -d "$app" ]; then /usr/bin/python3 -c 'import shutil,sys; shutil.rmtree(sys.argv[1])' "$app"; fi
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Frameworks"
 cp "$binary_dir/PandaPlayer" "$app/Contents/MacOS/PandaPlayer"
@@ -25,6 +25,6 @@ if [ "${BUNDLE_MPV:-0}" = "1" ]; then
 fi
 codesign --force --sign - "$app"
 codesign --verify --deep --strict "$app"
-if [ -d "$PWD/build/PandaPlayer.app" ]; then /usr/bin/python3 -c 'import shutil,sys; shutil.rmtree(sys.argv[1])' "$PWD/build/PandaPlayer.app"; fi
-mv "$app" "$PWD/build/PandaPlayer.app"
-printf 'Built: %s\n' "$PWD/build/PandaPlayer.app"
+if [ -d "$PWD/build/熊猫播放器.app" ]; then /usr/bin/python3 -c 'import shutil,sys; shutil.rmtree(sys.argv[1])' "$PWD/build/熊猫播放器.app"; fi
+mv "$app" "$PWD/build/熊猫播放器.app"
+printf 'Built: %s\n' "$PWD/build/熊猫播放器.app"

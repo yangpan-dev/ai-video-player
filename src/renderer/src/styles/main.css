@@ -85,3 +85,12 @@ select {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+button:focus-visible, summary:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.quiet-icon { display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; padding: 8px; color: var(--text-dim); border-radius: 7px; cursor: pointer; }
+.quiet-icon:hover { color: var(--text); background: #ffffff0a; }
+.quick-menu { position: relative; }
+.quick-menu summary { display: flex; align-items: center; gap: 7px; list-style: none; cursor: pointer; }
+.quick-menu summary::-webkit-details-marker { display: none; }
+.menu-items { position: absolute; right: 0; top: calc(100% + 8px); min-width: 210px; z-index: 20; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-elevated); box-shadow: 0 10px 30px #0006; }
+.menu-items button { display: block; width: 100%; text-align: left; border: 0; background: transparent; }

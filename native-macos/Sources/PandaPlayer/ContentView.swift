@@ -19,7 +19,7 @@ struct ContentView: View {
             if !store.isFullscreen { titlebar; Divider() }
             HStack(spacing: 0) {
                 if store.sidebarVisible && !store.isFullscreen {
-                    sidebar.frame(width: 214)
+                    sidebar.frame(width: 220)
                     Rectangle().fill(Palette.border).frame(width: 1)
                 }
                 VStack(spacing: 0) {
@@ -57,13 +57,12 @@ struct ContentView: View {
             Color.clear.frame(width: 66, height: 12)
             iconButton("sidebar.left", help: "显示或隐藏播放列表（⌘1）") { store.sidebarVisible.toggle() }
             if let icon = AppAssets.icon { Image(nsImage: icon).resizable().frame(width: 24, height: 24) }
-            Text("PandaPlayer").font(.system(size: 12, weight: .semibold, design: .rounded))
+            Text("熊猫播放器").font(.system(size: 12, weight: .semibold, design: .rounded))
             if let current = store.current {
                 Text("/").foregroundStyle(Palette.border)
                 Text(current.title).font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1).truncationMode(.middle)
             }
             Spacer(minLength: 8)
-            iconButton("folder", help: "打开视频（⌘O）") { store.openPanel() }
             AIControlBar(store: store, ai: store.ai)
             iconButton("gearshape", help: "设置（⌘,）") { store.openSettings() }
         }.padding(.horizontal, 16).frame(height: 50).background(WindowDragArea())
@@ -138,7 +137,7 @@ struct ContentView: View {
     private var welcome: some View {
         VStack(spacing: 0) {
             if let icon = AppAssets.icon { Image(nsImage: icon).resizable().scaledToFit().frame(width: 100, height: 100).padding(.bottom, 22) }
-            Text("打开一部好电影").font(.system(size: 24, weight: .light)).tracking(1)
+            Text("熊猫播放器").font(.system(size: 24, weight: .medium)).tracking(1)
             Text("拖入视频或文件夹即可开始").font(.system(size: 12)).foregroundStyle(Palette.muted).padding(.top, 12)
             Button { store.openPanel() } label: {
                 Label("打开视频", systemImage: "folder").font(.system(size: 12, weight: .medium)).padding(.horizontal, 22).padding(.vertical, 11)

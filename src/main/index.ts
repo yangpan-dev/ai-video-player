@@ -21,7 +21,7 @@ function migrateOldModels(): void {
   try {
     const appData = app.getPath('appData')
     const oldModels = join(appData, 'LocalAIVideoPlayer', 'models')
-    const newModels = join(appData, 'AIVideoPlayer', 'models')
+    const newModels = join(app.getPath('userData'), 'models')
     if (existsSync(oldModels) && !existsSync(newModels)) {
       cpSync(oldModels, newModels, { recursive: true })
       console.log('已迁移旧模型目录：', oldModels, '->', newModels)
@@ -51,7 +51,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#0f1115',
-    title: 'AIVideoPlayer',
+    title: '熊猫播放器',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -74,7 +74,14 @@ function createWindow(): void {
   }
 }
 
+// Keep the existing profile, model downloads and localStorage when changing the display name.
+const existingProfile = app.getPath('userData')
+app.setName('熊猫播放器')
+app.setPath('userData', existingProfile)
+
 app.whenReady().then(() => {
+  const icon = app.isPackaged ? join(__dirname, '../renderer/app-icon.png') : join(app.getAppPath(), 'build/icon.png')
+  if (process.platform === 'darwin' && app.dock && existsSync(icon)) app.dock.setIcon(icon)
   migrateOldModels()
   ensureDirs()
   protocol.handle('media', mediaHandler)

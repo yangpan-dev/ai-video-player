@@ -24,7 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         store = PlayerStore()
         let root = ContentView(store: store)
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 800), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
-        window.title = "PandaPlayer — 原生视频播放器"
+        window.title = "熊猫播放器"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.toolbar = nil
@@ -83,11 +83,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         func item(_ menu: NSMenu, _ title: String, _ action: Selector, _ key: String = "", _ modifiers: NSEvent.ModifierFlags = .command) {
             let value = NSMenuItem(title: title, action: action, keyEquivalent: key); value.target = self; value.keyEquivalentModifierMask = modifiers; menu.addItem(value)
         }
-        let app = menu("PandaPlayer")
-        item(app, "关于 PandaPlayer", #selector(about)); app.addItem(.separator())
+        let app = menu("熊猫播放器")
+        item(app, "关于熊猫播放器", #selector(about)); app.addItem(.separator())
         item(app, "设置…", #selector(settings), ","); app.addItem(.separator())
-        item(app, "隐藏 PandaPlayer", #selector(hideApp), "h"); app.addItem(.separator())
-        item(app, "退出 PandaPlayer", #selector(quit), "q")
+        item(app, "隐藏熊猫播放器", #selector(hideApp), "h"); app.addItem(.separator())
+        item(app, "退出熊猫播放器", #selector(quit), "q")
         let file = menu("文件")
         item(file, "打开视频…", #selector(openVideo), "o")
         item(file, "添加文件夹…", #selector(openFolder), "o", [.command, .shift])
@@ -127,6 +127,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func hideApp() { NSApplication.shared.hide(nil) }
     @objc private func quit() { NSApplication.shared.terminate(nil) }
     @objc private func about() {
-        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationName: "PandaPlayer", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.1", .credits: NSAttributedString(string: "原生 macOS AI 视频播放器\nSwiftUI · AppKit · libmpv\nWhisper 语音识别 · Qwen 本地翻译\n高质量缩放 · 多格式播放 · 递归视频列表")])
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationName: "熊猫播放器", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.0", .credits: NSAttributedString(string: "原生 macOS AI 视频播放器\nSwiftUI · AppKit · libmpv\nWhisper 语音识别 · Qwen 本地翻译\n高质量缩放 · 多格式播放 · 递归视频列表")])
     }
 }

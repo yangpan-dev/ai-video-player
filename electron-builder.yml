@@ -1,6 +1,6 @@
 appId: com.example.local-ai-video-player
-productName: AIVideoPlayer
-artifactName: "AIVideoPlayer-${version}-${arch}.${ext}"
+productName: 熊猫播放器
+artifactName: "PandaPlayer-Electron-${version}-${arch}.${ext}"
 # 签名：默认走 ad-hoc（免费）。
 # 有 Apple Developer ID 证书后，把 identity 改成证书名并开启 CSC_IDENTITY_AUTO_DISCOVERY 即可。
 # identity: null 表示不查找证书、跳过正式签名（仅 ad-hoc，本机可用，分发时会有 Gatekeeper 提示）。
@@ -13,6 +13,7 @@ asarUnpack:
   - node_modules/ffmpeg-static/**
 npmRebuild: false
 mac:
+  icon: build/icon.icns
   category: public.app-category.video
   target:
     - dmg
@@ -25,6 +26,7 @@ mac:
       filter:
         - "**/*"
 win:
+  executableName: PandaPlayer
   icon: build/icon.ico
   target:
     - nsis
@@ -34,7 +36,7 @@ win:
       filter:
         - "**/*"
 nsis:
-  artifactName: "AIVideoPlayer.Setup.${version}.${ext}"
+  artifactName: "PandaPlayer.Setup.${version}.${ext}"
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true

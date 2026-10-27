@@ -7,12 +7,9 @@ defineProps<{
   mode: 'stream' | 'batch'
   running: boolean
   translating: boolean
-  hasSegments: boolean
-  needsRemux: boolean
   detectedLanguage: string | null
   downloadState: ModelProgress | null
   llmModelReady: boolean
-  disabled: boolean
 }>()
 
 const emit = defineEmits<{
@@ -20,11 +17,6 @@ const emit = defineEmits<{
   (e: 'update:mode', v: 'stream' | 'batch'): void
   (e: 'download', name: string): void
   (e: 'downloadLlm'): void
-  (e: 'generate'): void
-  (e: 'cancel'): void
-  (e: 'export'): void
-  (e: 'remux'): void
-  (e: 'import'): void
 }>()
 
 const LANG_LABEL: Record<string, string> = { ja: '日语', en: '英语', auto: '自动' }
@@ -32,6 +24,7 @@ const LANG_LABEL: Record<string, string> = { ja: '日语', en: '英语', auto: '
 
 <template>
   <div class="control-panel">
+    <h3>识别与翻译</h3>
     <div class="field">
       <label>识别模式</label>
       <div class="seg">
@@ -95,57 +88,31 @@ const LANG_LABEL: Record<string, string> = { ja: '日语', en: '英语', auto: '
         下载翻译模型（4.4GB）
       </button>
     </div>
-
-    <div class="actions">
-      <button @click="emit('import')" title="导入 SRT / VTT 字幕，也可直接拖入文件">导入字幕</button>
-      <button
-        v-if="needsRemux"
-        class="primary"
-        :disabled="disabled || running || translating"
-        @click="emit('remux')"
-      >
-        无损转 MP4 播放
-      </button>
-      <button v-if="running" class="danger" @click="emit('cancel')">取消</button>
-      <button
-        v-else
-        class="primary"
-        :disabled="disabled || translating || !!downloadState"
-        @click="emit('generate')"
-      >
-        {{ mode === 'stream' ? '开始实时识别' : '生成字幕' }}
-      </button>
-      <button :disabled="!hasSegments || running || translating" @click="emit('export')">
-        导出字幕
-      </button>
-    </div>
+    <p v-if="downloadState" class="download-progress">正在下载 {{ downloadState.name }} · {{ downloadState.percent }}%</p>
   </div>
 </template>
 
 <style scoped>
 .control-panel {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 16px;
-  align-items: center;
-  padding: 12px 16px;
+  align-items: stretch;
+  padding: 22px 0;
   background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
+
 }
 .field {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+.field { justify-content: space-between; flex-wrap: wrap; }
+h3 { margin: 0; font-size: 12px; font-weight: 500; color: var(--text-dim); }
 .field label {
   font-size: 13px;
   color: var(--text-dim);
   white-space: nowrap;
-}
-.actions {
-  margin-left: auto;
-  display: flex;
-  gap: 10px;
 }
 .tag {
   font-size: 12px;
@@ -165,14 +132,6 @@ const LANG_LABEL: Record<string, string> = { ja: '日语', en: '英语', auto: '
 .mini {
   padding: 7px 10px;
   font-size: 12px;
-}
-.danger {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-.danger:hover:not(:disabled) {
-  border-color: var(--danger);
-  background: rgba(255, 92, 108, 0.12);
 }
 .seg {
   display: flex;
