@@ -56,7 +56,8 @@ final class PlayerStore: ObservableObject {
     @Published var autoNext = true { didSet { defaults.set(autoNext, forKey: "autoNext") } }
     @Published var repeatFile = false { didSet { engine?.set("loop-file", repeatFile ? "inf" : "no") } }
     @Published var alwaysOnTop = false { didSet { window?.level = alwaysOnTop ? .floating : .normal } }
-    @Published var isFullscreen = false
+    private(set) var isFullscreen = false
+    @Published private(set) var fullscreenLayout = false
     private(set) var fullscreenTransitioning = false
     @Published var controlsVisible = true
     @Published var search = ""
@@ -285,9 +286,28 @@ final class PlayerStore: ObservableObject {
         fullscreenTransitioning = true
         window.toggleFullScreen(nil)
     }
-    func beginFullscreenTransition() { fullscreenTransitioning = true; controlsVisible = true }
+    func beginFullscreenTransition(to fullscreen: Bool) {
+        fullscreenTransitioning = true
+        // Prepare chrome before AppKit captures/animates the window. Successful completion
+        // must not change video insets a second time after the native animation ends.
+        prepareFullscreenLayout(fullscreen)
+    }
+    private func prepareFullscreenLayout(_ fullscreen: Bool) {
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            if fullscreenLayout != fullscreen { fullscreenLayout = fullscreen }
+            if !controlsVisible { controlsVisible = true }
+        }
+        if let content = window?.contentView {
+            content.needsLayout = true
+            content.layoutSubtreeIfNeeded()
+        }
+    }
     func finishFullscreenTransition(_ fullscreen: Bool) {
-        isFullscreen = fullscreen; fullscreenTransitioning = false; controlsVisible = true
+        isFullscreen = fullscreen; fullscreenTransitioning = false
+        // Also restore the original chrome if AppKit cancels an enter/exit transition.
+        if fullscreenLayout != fullscreen { prepareFullscreenLayout(fullscreen) }
         NotificationCenter.default.post(name: .lumenRevealCursor, object: nil)
     }
     func openSettings(_ section: SettingsSection? = nil) {

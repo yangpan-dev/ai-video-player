@@ -35,7 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.contentView = NSHostingView(rootView: root)
         window.delegate = self
         window.collectionBehavior = [.fullScreenPrimary]
-        window.setFrameAutosaveName("PandaPlayerMainWindow")
+        if ProcessInfo.processInfo.environment["PANDAPLAYER_STATE_DIR"] == nil {
+            window.setFrameAutosaveName("PandaPlayerMainWindow")
+        }
         window.center(); store.window = window
         installMenu()
         window.makeKeyAndOrderFront(nil)
@@ -70,8 +72,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationWillTerminate(_ notification: Notification) { store?.shutdown() }
-    func windowWillEnterFullScreen(_ notification: Notification) { store.beginFullscreenTransition() }
-    func windowWillExitFullScreen(_ notification: Notification) { store.beginFullscreenTransition() }
+    func windowDidResize(_ notification: Notification) {
+        // NSHostingView otherwise defers its child layout until the next runloop turn,
+        // leaving the OpenGL view at the previous size for a frame during fullscreen.
+        if let content = window?.contentView {
+            content.needsLayout = true
+            content.layoutSubtreeIfNeeded()
+        }
+    }
+    func windowWillEnterFullScreen(_ notification: Notification) { store.beginFullscreenTransition(to: true) }
+    func windowWillExitFullScreen(_ notification: Notification) { store.beginFullscreenTransition(to: false) }
     func windowDidEnterFullScreen(_ notification: Notification) { store.finishFullscreenTransition(true) }
     func windowDidExitFullScreen(_ notification: Notification) { store.finishFullscreenTransition(false) }
     func windowDidFailToEnterFullScreen(_ window: NSWindow) { store.finishFullscreenTransition(false) }
@@ -130,6 +140,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func hideApp() { NSApplication.shared.hide(nil) }
     @objc private func quit() { NSApplication.shared.terminate(nil) }
     @objc private func about() {
-        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationName: "熊猫播放器", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.1", .credits: NSAttributedString(string: "原生 macOS AI 视频播放器\nSwiftUI · AppKit · libmpv\nWhisper 语音识别 · Qwen 本地翻译\n高质量缩放 · 多格式播放 · 递归视频列表")])
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationName: "熊猫播放器", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.2", .credits: NSAttributedString(string: "原生 macOS AI 视频播放器\nSwiftUI · AppKit · libmpv\nWhisper 语音识别 · Qwen 本地翻译\n高质量缩放 · 多格式播放 · 递归视频列表")])
     }
 }

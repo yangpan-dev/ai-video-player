@@ -46,23 +46,27 @@ final class MPVVideoView: NSOpenGLView {
         renderer = VideoRenderer(context: context, handle: handle, statistics: store.renderStatistics) { [weak store] message in
             store?.error = "视频渲染初始化失败：\(message)"
         }
-        requestRedraw()
+        update()
     }
     // AppKit can touch the same drawable during a resize. Serialize those short operations
     // with rendering, but never decode/render or wait for vsync on the UI thread.
     override func update() {
         guard let cgl = openGLContext?.cglContextObj else { super.update(); return }
-        CGLLockContext(cgl); super.update(); CGLUnlockContext(cgl)
-        requestRedraw()
+        CGLLockContext(cgl)
+        super.update()
+        renderer?.updateViewport(size: convertToBacking(bounds).size)
+        CGLUnlockContext(cgl)
     }
     override func reshape() {
         guard let cgl = openGLContext?.cglContextObj else { super.reshape(); return }
-        CGLLockContext(cgl); super.reshape(); openGLContext?.update(); CGLUnlockContext(cgl)
-        requestRedraw()
+        CGLLockContext(cgl)
+        super.reshape(); openGLContext?.update()
+        renderer?.updateViewport(size: convertToBacking(bounds).size)
+        CGLUnlockContext(cgl)
     }
     override func viewDidChangeBackingProperties() { super.viewDidChangeBackingProperties(); update() }
     override func draw(_ dirtyRect: NSRect) { requestRedraw() }
-    private func requestRedraw() { renderer?.requestDraw(size: convertToBacking(bounds).size) }
+    private func requestRedraw() { renderer?.requestDraw() }
     func releaseRenderer() {
         cursorWork?.cancel(); revealCursor()
         renderer?.shutdown(); renderer = nil

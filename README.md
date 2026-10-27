@@ -16,11 +16,11 @@ macOS 原生播放器现已建立独立工程：[熊猫播放器原生版（Swif
 
 ## 📦 下载安装（已打包程序，无需编译）
 
-最新 macOS / Windows 安装包发布在 [GitHub Releases v0.3.1](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.3.1)，更新说明见 [v0.3.1](releases/v0.3.1.md)。
+原生 macOS 全屏抖动修复已发布：[GitHub Releases v0.3.2](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.3.2)，更新说明见 [v0.3.2](releases/v0.3.2.md)。Vue / Electron 版仍可下载 v0.3.1。
 
 | 版本 | 安装包 |
 | --- | --- |
-| macOS 原生版（Apple Silicon，macOS 26+） | [DMG](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.1/PandaPlayer-0.3.1-arm64-mac.dmg) · [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.1/PandaPlayer-0.3.1-arm64-mac.zip) |
+| macOS 原生版（Apple Silicon，macOS 26+） | [DMG](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.2/PandaPlayer-0.3.2-arm64-mac.dmg) · [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.2/PandaPlayer-0.3.2-arm64-mac.zip) |
 | macOS Vue / Electron 版（Apple Silicon，完整 AI 引擎需 macOS 26+） | [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.1/PandaPlayer-Electron-0.3.1-arm64-mac.zip) |
 | Windows Vue / Electron 版（x64） | [安装程序](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.1/PandaPlayer.Setup.0.3.1.exe) |
 

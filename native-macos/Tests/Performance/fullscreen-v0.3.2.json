@@ -1,0 +1,965 @@
+{
+  "machine": "Apple M1 Pro, 16 GB",
+  "fixture": "Generated H.264/AAC, four native fullscreen transitions per run; geometry sampled in window coordinates",
+  "before1080p": {
+    "error": "",
+    "fullscreenTest": "passed",
+    "geometry": [
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          83,
+          94
+        ],
+        "video": [
+          1179,
+          587
+        ],
+        "window": [
+          1400,
+          764
+        ]
+      },
+      {
+        "event": "before",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          83,
+          94
+        ],
+        "video": [
+          1179,
+          587
+        ],
+        "window": [
+          1400,
+          764
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1291,
+          804
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "didTransition",
+        "fullscreen": true,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1291,
+          804
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "before",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": true,
+        "insets": [
+          0,
+          -112,
+          32,
+          -185
+        ],
+        "video": [
+          1512,
+          917
+        ],
+        "window": [
+          1400,
+          764
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          32,
+          0
+        ],
+        "video": [
+          1400,
+          732
+        ],
+        "window": [
+          1400,
+          764
+        ]
+      },
+      {
+        "event": "didTransition",
+        "fullscreen": false,
+        "insets": [
+          0,
+          0,
+          32,
+          0
+        ],
+        "video": [
+          1400,
+          732
+        ],
+        "window": [
+          1400,
+          764
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          83,
+          94
+        ],
+        "video": [
+          1179,
+          587
+        ],
+        "window": [
+          1400,
+          764
+        ]
+      },
+      {
+        "event": "before",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          83,
+          94
+        ],
+        "video": [
+          1179,
+          587
+        ],
+        "window": [
+          1400,
+          764
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1291,
+          804
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "didTransition",
+        "fullscreen": true,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1291,
+          804
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "before",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": true,
+        "insets": [
+          0,
+          -112,
+          32,
+          -185
+        ],
+        "video": [
+          1512,
+          917
+        ],
+        "window": [
+          1400,
+          764
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          32,
+          0
+        ],
+        "video": [
+          1400,
+          732
+        ],
+        "window": [
+          1400,
+          764
+        ]
+      },
+      {
+        "event": "didTransition",
+        "fullscreen": false,
+        "insets": [
+          0,
+          0,
+          32,
+          0
+        ],
+        "video": [
+          1400,
+          732
+        ],
+        "window": [
+          1400,
+          764
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          83,
+          94
+        ],
+        "video": [
+          1179,
+          587
+        ],
+        "window": [
+          1400,
+          764
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          221,
+          40,
+          83,
+          82
+        ],
+        "video": [
+          1179,
+          587
+        ],
+        "window": [
+          1440,
+          752
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          83,
+          94
+        ],
+        "video": [
+          1219,
+          575
+        ],
+        "window": [
+          1440,
+          752
+        ]
+      }
+    ],
+    "hwdec": "videotoolbox",
+    "lateInsetChanges": 4,
+    "mainThreadLagMaxMs": 274.25058332504705,
+    "mainThreadLagP95Ms": 8.399374996079132,
+    "mainThreadRenderedFrames": 0,
+    "pausedResize": true,
+    "renderedFrames": 274,
+    "rendererCreations": 1,
+    "steps": [
+      {
+        "frames": 36,
+        "fullscreen": true,
+        "milliseconds": 817.5413749995641
+      },
+      {
+        "frames": 37,
+        "fullscreen": false,
+        "milliseconds": 821.2992916523945
+      },
+      {
+        "frames": 38,
+        "fullscreen": true,
+        "milliseconds": 766.8608750100248
+      },
+      {
+        "frames": 37,
+        "fullscreen": false,
+        "milliseconds": 727.0248749991879
+      }
+    ],
+    "verifiedVideoPixels": true
+  },
+  "after1080p": {
+    "error": "",
+    "fullscreenTest": "passed",
+    "geometry": [
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      },
+      {
+        "event": "before",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "didTransition",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "before",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": true,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      },
+      {
+        "event": "didTransition",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      },
+      {
+        "event": "before",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "didTransition",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "before",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": true,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      },
+      {
+        "event": "didTransition",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      }
+    ],
+    "hwdec": "videotoolbox",
+    "lateInsetChanges": 0,
+    "mainThreadLagMaxMs": 298.5400833224412,
+    "mainThreadLagP95Ms": 4.607375022023916,
+    "mainThreadRenderedFrames": 0,
+    "outOfBoundsDuringTransition": 0,
+    "overlayStable": true,
+    "pausedResize": true,
+    "renderedFrames": 245,
+    "rendererCreations": 1,
+    "steps": [
+      {
+        "frames": 38,
+        "fullscreen": true,
+        "milliseconds": 867.2257083235309
+      },
+      {
+        "frames": 37,
+        "fullscreen": false,
+        "milliseconds": 735.347499983618
+      },
+      {
+        "frames": 34,
+        "fullscreen": true,
+        "milliseconds": 714.038125006482
+      },
+      {
+        "frames": 35,
+        "fullscreen": false,
+        "milliseconds": 729.2239583330229
+      }
+    ],
+    "verifiedVideoPixels": true
+  },
+  "after4K": {
+    "error": "",
+    "fullscreenTest": "passed",
+    "geometry": [
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      },
+      {
+        "event": "before",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "didTransition",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "before",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": true,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      },
+      {
+        "event": "didTransition",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      },
+      {
+        "event": "before",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": false,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "didTransition",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "before",
+        "fullscreen": true,
+        "insets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "video": [
+          1512,
+          949
+        ],
+        "window": [
+          1512,
+          949
+        ]
+      },
+      {
+        "event": "tick",
+        "fullscreen": true,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      },
+      {
+        "event": "didTransition",
+        "fullscreen": false,
+        "insets": [
+          221,
+          0,
+          51,
+          94
+        ],
+        "video": [
+          1059,
+          655
+        ],
+        "window": [
+          1280,
+          800
+        ]
+      }
+    ],
+    "hwdec": "videotoolbox",
+    "lateInsetChanges": 0,
+    "mainThreadLagMaxMs": 288.7042916647624,
+    "mainThreadLagP95Ms": 2.332166690612212,
+    "mainThreadRenderedFrames": 0,
+    "outOfBoundsDuringTransition": 0,
+    "overlayStable": true,
+    "pausedResize": true,
+    "renderedFrames": 251,
+    "rendererCreations": 1,
+    "steps": [
+      {
+        "frames": 39,
+        "fullscreen": true,
+        "milliseconds": 864.8955833341461
+      },
+      {
+        "frames": 38,
+        "fullscreen": false,
+        "milliseconds": 752.2153333411552
+      },
+      {
+        "frames": 37,
+        "fullscreen": true,
+        "milliseconds": 770.596458343789
+      },
+      {
+        "frames": 36,
+        "fullscreen": false,
+        "milliseconds": 765.807958348887
+      }
+    ],
+    "verifiedVideoPixels": true
+  }
+}

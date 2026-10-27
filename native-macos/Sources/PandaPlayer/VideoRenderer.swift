@@ -69,10 +69,12 @@ final class VideoRenderer {
             }
         }
     }
-    func requestDraw(size: NSSize) {
+    // The caller holds the drawable's CGL lock while committing both its size and viewport.
+    func updateViewport(size: NSSize) {
         viewportLock.lock(); viewport = size; viewportLock.unlock()
-        requests.or(data: 2) // AppKit expose/resize must redraw even when paused.
+        requestDraw()
     }
+    func requestDraw() { requests.or(data: 2) } // Expose/resize must redraw even when paused.
     private func withContext(_ action: () -> Void) {
         guard let cgl = context.cglContextObj else { return }
         CGLLockContext(cgl)
@@ -82,9 +84,11 @@ final class VideoRenderer {
     }
     private func render(force: Bool) {
         guard ready else { return }
-        viewportLock.lock(); let size = viewport; viewportLock.unlock()
-        guard size.width > 0, size.height > 0 else { return }
         withContext {
+            // Read after taking the drawable lock: AppKit may have resized the surface
+            // while this render request was waiting. Never draw with the previous size.
+            viewportLock.lock(); let size = viewport; viewportLock.unlock()
+            guard size.width > 0, size.height > 0 else { return }
             var fbo: GLint = 0; glGetIntegerv(GLenum(GL_FRAMEBUFFER_BINDING), &fbo)
             if lumen_render_if_needed(handle, Int32(size.width), Int32(size.height), fbo, force ? 1 : 0) > 0 {
                 // Sample our own framebuffer in integration tests only, to reject black/invalid output.

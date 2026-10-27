@@ -16,9 +16,9 @@ struct ContentView: View {
     @ObservedObject var store: PlayerStore
     var body: some View {
         VStack(spacing: 0) {
-            if !store.isFullscreen { titlebar; Divider() }
+            if !store.fullscreenLayout { titlebar; Divider() }
             HStack(spacing: 0) {
-                if store.sidebarVisible && !store.isFullscreen {
+                if store.sidebarVisible && !store.fullscreenLayout {
                     sidebar.frame(width: 220)
                     Rectangle().fill(Palette.border).frame(width: 1)
                 }
@@ -34,7 +34,7 @@ struct ContentView: View {
                             RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.accent, style: StrokeStyle(lineWidth: 2, dash: [8])).padding(12)
                                 .overlay(Label("松开以添加", systemImage: "arrow.down.doc").font(.title3).padding(22).background(Palette.panel, in: RoundedRectangle(cornerRadius: 14)))
                         }
-                        if store.isFullscreen {
+                        if store.fullscreenLayout {
                             transport.opacity(store.controlsVisible ? 1 : 0)
                                 .allowsHitTesting(store.controlsVisible)
                                 .accessibilityHidden(!store.controlsVisible)
@@ -43,11 +43,14 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
                     .onDrop(of: [.fileURL], isTargeted: $store.dropTargeted, perform: drop)
-                    if !store.isFullscreen { transport }
-                    if !store.isFullscreen { AIStatusBar(store: store, ai: store.ai) }
+                    if !store.fullscreenLayout { transport }
+                    if !store.fullscreenLayout { AIStatusBar(store: store, ai: store.ai) }
                 }.frame(minWidth: 440)
             }
         }
+        // The custom titlebar already reserves its own height. Do not let AppKit's
+        // changing native titlebar safe area add/remove another inset during fullscreen.
+        .ignoresSafeArea()
         .background(Palette.background)
         .foregroundStyle(.white.opacity(0.9))
         .tint(Palette.accent)
