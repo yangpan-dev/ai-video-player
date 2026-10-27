@@ -3,9 +3,9 @@
 The Swift application and the small CMPV dynamic bridge are original code.
 CMPV declares only the ABI subset it uses from libmpv's stable public API v2:
 
-- https://github.com/mpv-player/mpv/blob/v0.40.0/libmpv/client.h
-- https://github.com/mpv-player/mpv/blob/v0.40.0/libmpv/render.h
-- https://github.com/mpv-player/mpv/blob/v0.40.0/libmpv/render_gl.h
+- https://github.com/mpv-player/mpv/blob/v0.40.0/include/mpv/client.h
+- https://github.com/mpv-player/mpv/blob/v0.40.0/include/mpv/render.h
+- https://github.com/mpv-player/mpv/blob/v0.40.0/include/mpv/render_gl.h
 
 No mpv, FFmpeg or IINA binaries or source code are tracked in this repository.
 Debug builds can load the user's installed IINA playback libraries for local

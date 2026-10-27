@@ -23,7 +23,7 @@ struct ContentView: View {
                     Rectangle().fill(Palette.border).frame(width: 1)
                 }
                 VStack(spacing: 0) {
-                    ZStack {
+                    ZStack(alignment: .bottom) {
                         VideoSurface(store: store)
                         if store.current == nil { welcome }
                         if store.isLoading { ProgressView().controlSize(.large).padding(18).background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 14)) }
@@ -34,11 +34,16 @@ struct ContentView: View {
                             RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.accent, style: StrokeStyle(lineWidth: 2, dash: [8])).padding(12)
                                 .overlay(Label("松开以添加", systemImage: "arrow.down.doc").font(.title3).padding(22).background(Palette.panel, in: RoundedRectangle(cornerRadius: 14)))
                         }
+                        if store.isFullscreen {
+                            transport.opacity(store.controlsVisible ? 1 : 0)
+                                .allowsHitTesting(store.controlsVisible)
+                                .accessibilityHidden(!store.controlsVisible)
+                        }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
                     .onDrop(of: [.fileURL], isTargeted: $store.dropTargeted, perform: drop)
-                    if !store.isFullscreen || store.controlsVisible { transport }
+                    if !store.isFullscreen { transport }
                     if !store.isFullscreen { AIStatusBar(store: store, ai: store.ai) }
                 }.frame(minWidth: 440)
             }

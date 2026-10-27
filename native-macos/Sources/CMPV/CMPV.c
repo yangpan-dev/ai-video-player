@@ -30,6 +30,7 @@ static int (*p_render_context_create)(mpv_render_context **, mpv_handle *, rende
 static void (*p_render_context_set_update_callback)(mpv_render_context *, lumen_update_callback, void *);
 static uint64_t (*p_render_context_update)(mpv_render_context *);
 static int (*p_render_context_render)(mpv_render_context *, render_param *);
+static void (*p_render_context_report_swap)(mpv_render_context *);
 static void (*p_render_context_free)(mpv_render_context *);
 
 int lumen_load_library(const char *path, char *error, size_t capacity) {
@@ -43,7 +44,7 @@ int lumen_load_library(const char *path, char *error, size_t capacity) {
     LOAD(set_property_string); LOAD(get_property); LOAD(get_property_string); LOAD(command);
     LOAD(wait_event); LOAD(error_string); LOAD(free); LOAD(render_context_create);
     LOAD(render_context_set_update_callback); LOAD(render_context_update);
-    LOAD(render_context_render); LOAD(render_context_free);
+    LOAD(render_context_render); LOAD(render_context_report_swap); LOAD(render_context_free);
     #undef LOAD
     return 0;
 }
@@ -95,12 +96,21 @@ int lumen_render_create(lumen_player *p, lumen_gl_resolver resolver, void *conte
 void lumen_render_callback(lumen_player *p, lumen_update_callback callback, void *context) {
     if (p->render) p_render_context_set_update_callback(p->render,callback,context);
 }
+int lumen_render_if_needed(lumen_player *p, int w, int h, int fbo, int force) {
+    if (!p->render || w <= 0 || h <= 0) return 0;
+    uint64_t flags = p_render_context_update(p->render);
+    if (!force && !(flags & 1)) return 0; // MPV_RENDER_UPDATE_FRAME
+    gl_fbo target = {fbo,w,h,0}; int flip = 1, block = 0;
+    // BLOCK_FOR_TARGET_TIME=0 is paired with video-timing-offset=0 in MPVEngine.
+    render_param params[] = {{3,&target},{4,&flip},{12,&block},{0,NULL}};
+    int result = p_render_context_render(p->render,params);
+    return result < 0 ? result : 1;
+}
 void lumen_render(lumen_player *p, int w, int h, int fbo) {
-    if (!p->render || w <= 0 || h <= 0) return;
-    p_render_context_update(p->render);
-    gl_fbo target = {fbo,w,h,0}; int flip = 1;
-    render_param params[] = {{3,&target},{4,&flip},{0,NULL}};
-    p_render_context_render(p->render,params);
+    lumen_render_if_needed(p,w,h,fbo,1);
+}
+void lumen_render_report_swap(lumen_player *p) {
+    if (p->render) p_render_context_report_swap(p->render);
 }
 void lumen_render_destroy(lumen_player *p) {
     if (p && p->render) {

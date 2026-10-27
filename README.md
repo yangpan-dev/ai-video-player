@@ -16,15 +16,15 @@ macOS 原生播放器现已建立独立工程：[熊猫播放器原生版（Swif
 
 ## 📦 下载安装（已打包程序，无需编译）
 
-最新 macOS / Windows 安装包发布在 [GitHub Releases v0.3.0](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.3.0)，更新说明见 [v0.3.0](releases/v0.3.0.md)。
+最新 macOS / Windows 安装包发布在 [GitHub Releases v0.3.1](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.3.1)，更新说明见 [v0.3.1](releases/v0.3.1.md)。
 
 | 版本 | 安装包 |
 | --- | --- |
-| macOS 原生版（Apple Silicon，macOS 26+） | [DMG](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.0/PandaPlayer-0.3.0-arm64-mac.dmg) · [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.0/PandaPlayer-0.3.0-arm64-mac.zip) |
-| macOS Vue / Electron 版（Apple Silicon，完整 AI 引擎需 macOS 26+） | [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.0/PandaPlayer-Electron-0.3.0-arm64-mac.zip) |
-| Windows Vue / Electron 版（x64） | [安装程序](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.0/PandaPlayer.Setup.0.3.0.exe) |
+| macOS 原生版（Apple Silicon，macOS 26+） | [DMG](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.1/PandaPlayer-0.3.1-arm64-mac.dmg) · [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.1/PandaPlayer-0.3.1-arm64-mac.zip) |
+| macOS Vue / Electron 版（Apple Silicon，完整 AI 引擎需 macOS 26+） | [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.1/PandaPlayer-Electron-0.3.1-arm64-mac.zip) |
+| Windows Vue / Electron 版（x64） | [安装程序](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.1/PandaPlayer.Setup.0.3.1.exe) |
 
-两版均显示「熊猫播放器」，使用同一张原生 Mac 风格熊猫播放图标。主界面保留视频、列表、播放控制和 AI 字幕入口；模型管理、识别模式、亮度、字幕字号 / 位置 / 时间偏移、自动下一集和缓存清理统一放到设置（`⌘ / Ctrl + ,`）。旧版模型、列表和观看进度保留原路径，升级无需重新下载模型。
+两版均显示「熊猫播放器」，分别使用独立设计的图标：原生版为蓝紫立体熊猫，Vue 版为青绿几何熊猫；两者均含 AI 神经节点、视频屏幕及播放三角。主界面保留视频、列表、播放控制和 AI 字幕入口；模型管理、识别模式、亮度、字幕字号 / 位置 / 时间偏移、自动下一集和缓存清理统一放到设置（`⌘ / Ctrl + ,`）。旧版模型、列表和观看进度保留原路径，升级无需重新下载模型。
 
 ### macOS（Apple Silicon）
 
@@ -48,7 +48,7 @@ macOS 原生播放器现已建立独立工程：[熊猫播放器原生版（Swif
 
 ### Windows（x64）
 
-1. 下载 `PandaPlayer.Setup.0.3.0.exe`。
+1. 下载 `PandaPlayer.Setup.0.3.1.exe`。
 2. 双击运行安装程序，按提示完成安装。
 3. 若 Windows SmartScreen 拦截（当前为未签名安装包），点「更多信息 → 仍要运行」。
 4. 首次使用请在应用内下载模型（同 macOS）。

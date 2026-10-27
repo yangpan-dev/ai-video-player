@@ -23,6 +23,9 @@ const char *lumen_error(int code);
 int lumen_render_create(lumen_player *player, lumen_gl_resolver resolver, void *context);
 void lumen_render_callback(lumen_player *player, lumen_update_callback callback, void *context);
 void lumen_render(lumen_player *player, int width, int height, int framebuffer);
+// Returns 1 for a rendered frame, 0 if idle, or an mpv error.
+int lumen_render_if_needed(lumen_player *player, int width, int height, int framebuffer, int force);
+void lumen_render_report_swap(lumen_player *player);
 void lumen_render_destroy(lumen_player *player);
 void lumen_destroy(lumen_player *player);
 #endif

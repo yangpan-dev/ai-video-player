@@ -1,7 +1,8 @@
 import AppKit
 
 let output = CommandLine.arguments[1]
-guard let image = NSImage(contentsOfFile: "Resources/PandaPlayer-icon.png") else { fatalError("Missing PandaPlayer icon") }
+let source = CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "Resources/PandaPlayer-icon.png"
+guard let image = NSImage(contentsOfFile: source) else { fatalError("Missing PandaPlayer icon") }
 let directory = URL(fileURLWithPath: output)
 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 for points in [16, 32, 128, 256, 512] {

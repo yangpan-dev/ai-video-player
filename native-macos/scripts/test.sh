@@ -28,3 +28,10 @@ fi
 if [ "${PANDAPLAYER_WINDOW_TEST:-0}" = "1" ]; then
     PANDAPLAYER_STATE_DIR="$PWD/.build/window-test" "$binary" --window-test "$fixtures/h264-ac3.mkv"
 fi
+
+if [ "${PANDAPLAYER_FULLSCREEN_TEST:-0}" = "1" ]; then
+    for resolution in 1920x1080 3840x2160; do
+        "$ffmpeg" -hide_banner -loglevel error -y -f lavfi -i "testsrc2=size=${resolution}:rate=24" -f lavfi -i 'sine=frequency=440:sample_rate=48000' -t 20 -c:v libx264 -preset ultrafast -crf 28 -pix_fmt yuv420p -c:a aac "$fixtures/fullscreen-${resolution}.mp4"
+        PANDAPLAYER_STATE_DIR="$PWD/.build/fullscreen-${resolution}" "$binary" --fullscreen-test "$fixtures/fullscreen-${resolution}.mp4"
+    done
+fi

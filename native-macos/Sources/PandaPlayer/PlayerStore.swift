@@ -57,13 +57,16 @@ final class PlayerStore: ObservableObject {
     @Published var repeatFile = false { didSet { engine?.set("loop-file", repeatFile ? "inf" : "no") } }
     @Published var alwaysOnTop = false { didSet { window?.level = alwaysOnTop ? .floating : .normal } }
     @Published var isFullscreen = false
+    private(set) var fullscreenTransitioning = false
     @Published var controlsVisible = true
     @Published var search = ""
     @Published var selectedSection = "playlist"
     @Published var isScrubbing = false
     @Published var dropTargeted = false
     weak var window: NSWindow?
-    var renderedFrameCount = 0
+    let renderStatistics = VideoRenderStatistics()
+    var renderedFrameCount: Int { renderStatistics.snapshot.frames }
+    var rendererCreationCount: Int { renderStatistics.snapshot.creations }
     private(set) var engine: MPVEngine?
     private var timer: Timer?
     private var pictureWork: DispatchWorkItem?
@@ -277,7 +280,16 @@ final class PlayerStore: ObservableObject {
             if result < 0 { error = "截图失败" } else { showNotice("截图已保存") }
         }
     }
-    func toggleFullscreen() { window?.toggleFullScreen(nil) }
+    func toggleFullscreen() {
+        guard let window, !fullscreenTransitioning else { return }
+        fullscreenTransitioning = true
+        window.toggleFullScreen(nil)
+    }
+    func beginFullscreenTransition() { fullscreenTransitioning = true; controlsVisible = true }
+    func finishFullscreenTransition(_ fullscreen: Bool) {
+        isFullscreen = fullscreen; fullscreenTransitioning = false; controlsVisible = true
+        NotificationCenter.default.post(name: .lumenRevealCursor, object: nil)
+    }
     func openSettings(_ section: SettingsSection? = nil) {
         if let section { settingsSection = section }
         settingsVisible = true

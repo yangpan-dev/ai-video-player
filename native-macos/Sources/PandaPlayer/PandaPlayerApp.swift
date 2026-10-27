@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var store: PlayerStore!
     private var window: NSWindow!
     private var pendingURLs = [URL]()
+    private var fullscreenProbe: FullscreenProbe?
     func applicationDidFinishLaunching(_ notification: Notification) {
         store = PlayerStore()
         let root = ContentView(store: store)
@@ -42,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let arguments = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-") }.map { URL(fileURLWithPath: $0) }
         let urls = pendingURLs + arguments
         if !urls.isEmpty { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.store.add(urls) } }
+        if CommandLine.arguments.contains("--fullscreen-test") { fullscreenProbe = FullscreenProbe(store: store, window: window) }
         if CommandLine.arguments.contains("--settings-test") {
             for (index, section) in SettingsSection.allCases.enumerated() {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1 + Double(index) * 0.6) { self.store.openSettings(section) }
@@ -55,8 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let checkSubtitles = !CommandLine.arguments.contains("--subtitle-test") || subtitles.contains("熊猫")
                 let checkFolders = !CommandLine.arguments.contains("--folder-test") || self.store.playlist.count >= 3
                 let checkSettings = !testSettings || (self.store.settingsVisible && self.store.settingsSection == .playback && self.window.attachedSheet != nil)
-                let passed = self.store.renderedFrameCount > 0 && self.store.duration > 0 && self.store.error == nil && checkSubtitles && checkFolders && checkSettings
-                let report: [String: Any] = ["window": passed ? "passed" : "failed", "renderedFrames": self.store.renderedFrameCount, "duration": self.store.duration, "error": self.store.error ?? "", "playlist": self.store.playlist.count, "subtitles": subtitles, "sid": self.store.engine?.string("sid") ?? "", "subVisible": self.store.engine?.string("sub-visibility") ?? "", "position": self.store.position, "settingsSheet": self.window.attachedSheet != nil, "settingsSection": self.store.settingsSection.rawValue, "tracks": self.store.tracks.map { "\($0.id):\($0.label)" }]
+                let passed = self.store.renderedFrameCount > 0 && self.store.duration > 0 && self.store.error == nil && checkSubtitles && checkFolders && checkSettings && self.store.renderStatistics.snapshot.verifiedPixels
+                let report: [String: Any] = ["window": passed ? "passed" : "failed", "renderedFrames": self.store.renderedFrameCount, "duration": self.store.duration, "error": self.store.error ?? "", "playlist": self.store.playlist.count, "subtitles": subtitles, "sid": self.store.engine?.string("sid") ?? "", "subVisible": self.store.engine?.string("sub-visibility") ?? "", "position": self.store.position, "verifiedVideoPixels": self.store.renderStatistics.snapshot.verifiedPixels, "mainThreadRenderedFrames": self.store.renderStatistics.snapshot.mainThreadFrames, "settingsSheet": self.window.attachedSheet != nil, "settingsSection": self.store.settingsSection.rawValue, "tracks": self.store.tracks.map { "\($0.id):\($0.label)" }]
                 if let data = try? JSONSerialization.data(withJSONObject: report, options: [.sortedKeys]) { print(String(decoding: data, as: UTF8.self)) }
                 self.store.shutdown()
                 exit(passed ? 0 : 1)
@@ -68,11 +70,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationWillTerminate(_ notification: Notification) { store?.shutdown() }
-    func windowDidEnterFullScreen(_ notification: Notification) { store.isFullscreen = true }
-    func windowDidExitFullScreen(_ notification: Notification) {
-        store.isFullscreen = false
-        NotificationCenter.default.post(name: .lumenRevealCursor, object: nil)
-    }
+    func windowWillEnterFullScreen(_ notification: Notification) { store.beginFullscreenTransition() }
+    func windowWillExitFullScreen(_ notification: Notification) { store.beginFullscreenTransition() }
+    func windowDidEnterFullScreen(_ notification: Notification) { store.finishFullscreenTransition(true) }
+    func windowDidExitFullScreen(_ notification: Notification) { store.finishFullscreenTransition(false) }
+    func windowDidFailToEnterFullScreen(_ window: NSWindow) { store.finishFullscreenTransition(false) }
+    func windowDidFailToExitFullScreen(_ window: NSWindow) { store.finishFullscreenTransition(true) }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { window.makeKeyAndOrderFront(nil); return true }
 
     private func installMenu() {
@@ -127,6 +130,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func hideApp() { NSApplication.shared.hide(nil) }
     @objc private func quit() { NSApplication.shared.terminate(nil) }
     @objc private func about() {
-        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationName: "熊猫播放器", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.0", .credits: NSAttributedString(string: "原生 macOS AI 视频播放器\nSwiftUI · AppKit · libmpv\nWhisper 语音识别 · Qwen 本地翻译\n高质量缩放 · 多格式播放 · 递归视频列表")])
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationName: "熊猫播放器", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.1", .credits: NSAttributedString(string: "原生 macOS AI 视频播放器\nSwiftUI · AppKit · libmpv\nWhisper 语音识别 · Qwen 本地翻译\n高质量缩放 · 多格式播放 · 递归视频列表")])
     }
 }

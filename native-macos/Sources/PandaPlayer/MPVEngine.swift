@@ -51,6 +51,8 @@ final class MPVEngine {
         _ = lumen_option(player, "target-prim", "bt.709")
         _ = lumen_option(player, "target-trc", "srgb")
         _ = lumen_option(player, "target-peak", "100")
+        // Keep timing in the core; rendering must not wait while holding the drawable lock.
+        _ = lumen_option(player, "video-timing-offset", "0")
         let result = lumen_initialize(player)
         if result < 0 { lumen_destroy(player); handle = nil; throw EngineError.operation("初始化播放引擎", result) }
         if !headless {

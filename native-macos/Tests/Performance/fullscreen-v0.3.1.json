@@ -1,0 +1,103 @@
+{
+  "machine": "Apple M1 Pro, 16 GB",
+  "fixture": "Generated 24 fps H.264/AAC, hardware decoding, four native fullscreen transitions",
+  "before1080p": {
+    "error": "",
+    "fullscreenTest": "passed",
+    "hwdec": "videotoolbox",
+    "mainThreadLagMaxMs": 3994.543916671537,
+    "mainThreadLagP95Ms": 3994.543916671537,
+    "renderedFrames": 467,
+    "rendererCreations": 1,
+    "steps": [
+      {
+        "frames": 57,
+        "fullscreen": true,
+        "milliseconds": 2418.8879166613333
+      },
+      {
+        "frames": 34,
+        "fullscreen": false,
+        "milliseconds": 1435.5949583405163
+      },
+      {
+        "frames": 146,
+        "fullscreen": true,
+        "milliseconds": 6002.652625000337
+      },
+      {
+        "frames": 41,
+        "fullscreen": false,
+        "milliseconds": 1710.9376250009518
+      }
+    ]
+  },
+  "after1080p": {
+    "error": "",
+    "fullscreenTest": "passed",
+    "hwdec": "videotoolbox",
+    "mainThreadLagMaxMs": 141.20645833667368,
+    "mainThreadLagP95Ms": 5.0639583298470825,
+    "mainThreadRenderedFrames": 0,
+    "pausedResize": true,
+    "renderedFrames": 271,
+    "rendererCreations": 1,
+    "steps": [
+      {
+        "frames": 36,
+        "fullscreen": true,
+        "milliseconds": 758.7781250185799
+      },
+      {
+        "frames": 33,
+        "fullscreen": false,
+        "milliseconds": 738.6972916428931
+      },
+      {
+        "frames": 36,
+        "fullscreen": true,
+        "milliseconds": 678.3766666776501
+      },
+      {
+        "frames": 36,
+        "fullscreen": false,
+        "milliseconds": 750.2720000047702
+      }
+    ],
+    "verifiedVideoPixels": true
+  },
+  "after4K": {
+    "error": "",
+    "fullscreenTest": "passed",
+    "hwdec": "videotoolbox",
+    "mainThreadLagMaxMs": 157.63191667268984,
+    "mainThreadLagP95Ms": 10.414750004420057,
+    "mainThreadRenderedFrames": 0,
+    "pausedResize": true,
+    "renderedFrames": 265,
+    "rendererCreations": 1,
+    "steps": [
+      {
+        "frames": 34,
+        "fullscreen": true,
+        "milliseconds": 796.1748333473224
+      },
+      {
+        "frames": 34,
+        "fullscreen": false,
+        "milliseconds": 733.5899583413266
+      },
+      {
+        "frames": 34,
+        "fullscreen": true,
+        "milliseconds": 710.7130833319388
+      },
+      {
+        "frames": 34,
+        "fullscreen": false,
+        "milliseconds": 748.7864999857266
+      }
+    ],
+    "verifiedVideoPixels": true
+  }
+}
