@@ -67,7 +67,8 @@ if (!info.permissions?.push) throw new Error('Missing repository push permission
 const { version } = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
 const tag = `v${version}`
 const commit = git('rev-parse', 'HEAD')
-if (!git('ls-remote', 'origin', 'refs/heads/main').startsWith(commit + '\t')) throw new Error('Push this commit to origin/main before publishing')
+const remoteMain = await api(`${base}/git/ref/heads/main`)
+if (remoteMain.object.sha !== commit) throw new Error('Push this commit to origin/main before publishing')
 const paths = process.argv.slice(2).map(path => resolve(path))
 if (!paths.length) throw new Error('Provide release asset paths')
 for (const path of paths) if (!statSync(path).isFile() || !statSync(path).size) throw new Error(`Empty/missing asset ${path}`)
