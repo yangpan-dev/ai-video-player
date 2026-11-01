@@ -16,15 +16,15 @@ macOS 原生播放器现已建立独立工程：[熊猫播放器原生版（Swif
 
 ## 📦 下载安装（已打包程序，无需编译）
 
-原生 macOS 全屏抖动修复已发布：[GitHub Releases v0.3.2](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.3.2)，更新说明见 [v0.3.2](releases/v0.3.2.md)。Vue / Electron 版仍可下载 v0.3.1。
+AI 字幕稳定性和播放控制栏更新：[GitHub Releases v0.3.3](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.3.3)，更新说明见 [v0.3.3](releases/v0.3.3.md)。本次提供原生 macOS 和 Vue / Electron macOS 两种安装包；Windows 稳定版仍可下载 v0.3.1。
 
 | 版本 | 安装包 |
 | --- | --- |
-| macOS 原生版（Apple Silicon，macOS 26+） | [DMG](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.2/PandaPlayer-0.3.2-arm64-mac.dmg) · [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.2/PandaPlayer-0.3.2-arm64-mac.zip) |
-| macOS Vue / Electron 版（Apple Silicon，完整 AI 引擎需 macOS 26+） | [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.1/PandaPlayer-Electron-0.3.1-arm64-mac.zip) |
+| macOS 原生版（Apple Silicon，macOS 26+） | [DMG](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.3/PandaPlayer-0.3.3-arm64-mac.dmg) · [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.3/PandaPlayer-0.3.3-arm64-mac.zip) |
+| macOS Vue / Electron 版（Apple Silicon，完整 AI 引擎需 macOS 26+） | [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.3/PandaPlayer-Electron-0.3.3-arm64-mac.zip) |
 | Windows Vue / Electron 版（x64） | [安装程序](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.1/PandaPlayer.Setup.0.3.1.exe) |
 
-两版均显示「熊猫播放器」，分别使用独立设计的图标：原生版为蓝紫立体熊猫，Vue 版为青绿几何熊猫；两者均含 AI 神经节点、视频屏幕及播放三角。主界面保留视频、列表、播放控制和 AI 字幕入口；模型管理、识别模式、亮度、字幕字号 / 位置 / 时间偏移、自动下一集和缓存清理统一放到设置（`⌘ / Ctrl + ,`）。旧版模型、列表和观看进度保留原路径，升级无需重新下载模型。
+两版均显示「熊猫播放器」，分别使用独立设计的图标：原生版为蓝紫立体熊猫，Vue 版为青绿几何熊猫；两者均含 AI 神经节点、视频屏幕及播放三角。主界面保留视频、列表、播放控制和 AI 字幕入口；亮度、精简播放和全屏位于同一排控制栏。模型管理、识别模式、字幕字号 / 位置 / 时间偏移、自动下一集和缓存清理统一放到设置（`⌘ / Ctrl + ,`）。旧版模型、列表和观看进度保留原路径，升级无需重新下载模型。
 
 ### macOS（Apple Silicon）
 
@@ -160,6 +160,8 @@ pnpm dev
 - 音量、静音、倍速、亮度和字幕样式会自动保存，切换视频或重启后继续使用。
 - 点击「导入字幕」或拖入 SRT/VTT 文件；视频同目录的同名字幕会自动加载。外部字幕保留全部文本行，支持 UTF-8、UTF-16 和常见中文编码。
 - 列表支持搜索、按名称自然排序（例如第 2 集排在第 10 集之前）。控制条提供上一集／下一集，在设置中可开启「播完自动播放下一集」。
+- 播放控制栏中的亮度、精简播放和全屏按钮位于同一排；点击亮度可直接调节并恢复原始亮度。
+- AI 翻译拦截模型说明、分析和开场白，单独重试对应字幕；重试仍失败时保留原文，已保存的 AI 字幕加载时也会隐藏这类旧译文。
 - 快捷键：空格播放／暂停，← → 跳转 5 秒，Shift + ← → 跳转 30 秒，↑ ↓ 音量，F 全屏，V 静音，P / N 上下集，⌘ / Ctrl + O 打开视频，[ / ] 调整字幕时间，M 精简模式。
 - 全屏时自动隐藏鼠标；移动鼠标后立即显示，静止 2.6 秒再次隐藏，退出全屏恢复正常显示。
 - 切换视频自动取消旧字幕任务，取消后的结果不会写入新视频；识别临时音频在任务结束后清理。

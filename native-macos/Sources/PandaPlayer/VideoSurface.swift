@@ -84,7 +84,9 @@ final class MPVVideoView: NSOpenGLView {
             case 124: store?.jump(event.modifierFlags.contains(.shift) ? 30 : 5)
             case 125: store?.volume = max(0, (store?.volume ?? 0) - 5)
             case 126: store?.volume = min(100, (store?.volume ?? 0) + 5)
-            case 53: if store?.isFullscreen == true { store?.toggleFullscreen() }
+            case 53:
+                if store?.minimalMode == true { store?.toggleMinimal() }
+                else if store?.isFullscreen == true { store?.toggleFullscreen() }
             default:
                 switch event.charactersIgnoringModifiers?.lowercased() {
                 case "f": store?.toggleFullscreen()
@@ -103,9 +105,9 @@ final class MPVVideoView: NSOpenGLView {
     }
     override func mouseMoved(with event: NSEvent) {
         revealCursor(); cursorWork?.cancel(); if store?.controlsVisible == false { store?.controlsVisible = true }
-        guard store?.isFullscreen == true, store?.isPlaying == true else { return }
+        guard store?.isFullscreen == true || store?.minimalMode == true, store?.isPlaying == true else { return }
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.store?.isFullscreen == true, self.window?.isKeyWindow == true else { return }
+            guard let self, self.store?.isFullscreen == true || self.store?.minimalMode == true, self.window?.isKeyWindow == true else { return }
             NSCursor.hide(); self.cursorHidden = true
             self.store?.controlsVisible = false
         }

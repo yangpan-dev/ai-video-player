@@ -16,9 +16,9 @@ struct ContentView: View {
     @ObservedObject var store: PlayerStore
     var body: some View {
         VStack(spacing: 0) {
-            if !store.fullscreenLayout { titlebar; Divider() }
+            if !store.fullscreenLayout && !store.minimalMode { titlebar; Divider() }
             HStack(spacing: 0) {
-                if store.sidebarVisible && !store.fullscreenLayout {
+                if store.sidebarVisible && !store.fullscreenLayout && !store.minimalMode {
                     sidebar.frame(width: 220)
                     Rectangle().fill(Palette.border).frame(width: 1)
                 }
@@ -34,17 +34,17 @@ struct ContentView: View {
                             RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.accent, style: StrokeStyle(lineWidth: 2, dash: [8])).padding(12)
                                 .overlay(Label("松开以添加", systemImage: "arrow.down.doc").font(.title3).padding(22).background(Palette.panel, in: RoundedRectangle(cornerRadius: 14)))
                         }
-                        if store.fullscreenLayout {
-                            transport.opacity(store.controlsVisible ? 1 : 0)
-                                .allowsHitTesting(store.controlsVisible)
-                                .accessibilityHidden(!store.controlsVisible)
+                        if store.fullscreenLayout || store.minimalMode {
+                            transport.opacity(store.controlsVisible || store.brightnessVisible ? 1 : 0)
+                                .allowsHitTesting(store.controlsVisible || store.brightnessVisible)
+                                .accessibilityHidden(!store.controlsVisible && !store.brightnessVisible)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
                     .onDrop(of: [.fileURL], isTargeted: $store.dropTargeted, perform: drop)
-                    if !store.fullscreenLayout { transport }
-                    if !store.fullscreenLayout { AIStatusBar(store: store, ai: store.ai) }
+                    if !store.fullscreenLayout && !store.minimalMode { transport }
+                    if !store.fullscreenLayout && !store.minimalMode { AIStatusBar(store: store, ai: store.ai) }
                 }.frame(minWidth: 440)
             }
         }
@@ -178,6 +178,15 @@ struct ContentView: View {
                     ForEach([0.5, 0.75, 1, 1.25, 1.5, 2.0], id: \.self) { speed in Button("\(speed.formatted())×") { store.speed = speed } }
                 } label: { Text("\(store.speed.formatted())×").font(.system(size: 11, weight: .medium, design: .monospaced)) }.menuStyle(.borderlessButton).fixedSize().help("播放速度")
                 SubtitleQuickMenu(store: store, ai: store.ai)
+                iconButton("sun.max", help: "亮度") { store.brightnessVisible.toggle() }
+                    .popover(isPresented: $store.brightnessVisible, arrowEdge: .bottom) {
+                        VStack(spacing: 14) {
+                            HStack { Text("亮度"); Spacer(); Text(String(format: "%+.0f", store.picture.brightness)).foregroundStyle(Palette.muted).monospacedDigit() }
+                            Slider(value: $store.picture.brightness, in: -30...30).controlSize(.mini).accessibilityLabel("画面亮度")
+                            Button("恢复原始亮度") { store.picture.brightness = 0 }.buttonStyle(.plain).foregroundStyle(Palette.accent)
+                        }.font(.system(size: 12)).padding(18).frame(width: 220).disabled(store.compareOriginal)
+                    }
+                iconButton(store.minimalMode ? "rectangle.inset.filled" : "rectangle", help: store.minimalMode ? "退出精简播放（Esc）" : "精简播放") { store.toggleMinimal() }
                 iconButton("arrow.up.left.and.arrow.down.right", help: "全屏（F）") { store.toggleFullscreen() }
             }
         }.padding(.horizontal, 22).padding(.top, 13).padding(.bottom, 16).background(Palette.panel.opacity(0.4))

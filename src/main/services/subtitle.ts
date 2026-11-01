@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, extname, join } from 'node:path'
 import type { SaveSubtitlesPayload, SaveSubtitlesResult, SubtitleSegment } from '@shared/types'
+import { isUsableTranslation } from '@shared/translationQuality'
 
 function pad(n: number, w = 2): string {
   return String(n).padStart(w, '0')
@@ -104,7 +105,12 @@ export function loadSavedSubtitles(videoPath: string): SubtitleSegment[] | null 
   for (const suffix of ['.zh.srt', '.zh.vtt', '.srt', '.vtt']) {
     const path = join(dir, base + suffix)
     if (!existsSync(path)) continue
-    try { return readSubtitleFile(path, suffix.startsWith('.zh.')) } catch { /* 尝试其他同名字幕 */ }
+    try {
+      const generated = suffix.startsWith('.zh.')
+      const segments = readSubtitleFile(path, generated)
+      return generated ? segments.map(segment => segment.translation && !isUsableTranslation(segment.translation, segment.text)
+        ? { ...segment, translation: undefined } : segment) : segments
+    } catch { /* 尝试其他同名字幕 */ }
   }
   return null
 }

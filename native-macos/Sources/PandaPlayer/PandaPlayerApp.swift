@@ -5,6 +5,8 @@ import PlayerCore
 @main
 enum PandaPlayerMain {
     static func main() {
+        if CommandLine.arguments.contains("--translation-controller-test") { TranslationControllerChecks.run(); return }
+        if CommandLine.arguments.contains("--ai-server-test") { AIIntegrationTest.runServerChecks(); return }
         if CommandLine.arguments.contains("--ai-test") { AIIntegrationTest.run(); return }
         if CommandLine.arguments.contains("--smoke-test") || CommandLine.arguments.contains("--render-test") { SmokeTest.run(); return }
         let application = NSApplication.shared
@@ -21,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow!
     private var pendingURLs = [URL]()
     private var fullscreenProbe: FullscreenProbe?
+    private var minimalKeyMonitor: Any?
     func applicationDidFinishLaunching(_ notification: Notification) {
         store = PlayerStore()
         let root = ContentView(store: store)
@@ -40,6 +43,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         window.center(); store.window = window
         installMenu()
+        minimalKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, event.keyCode == 53, self.store.minimalMode,
+                  self.window.attachedSheet == nil, !self.store.brightnessVisible else { return event }
+            self.store.toggleMinimal()
+            return nil
+        }
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate(ignoringOtherApps: true)
         let arguments = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-") }.map { URL(fileURLWithPath: $0) }
@@ -71,7 +80,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let store { store.add(urls) } else { pendingURLs += urls }
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
-    func applicationWillTerminate(_ notification: Notification) { store?.shutdown() }
+    func applicationWillTerminate(_ notification: Notification) {
+        if let minimalKeyMonitor { NSEvent.removeMonitor(minimalKeyMonitor) }
+        store?.shutdown()
+    }
     func windowDidResize(_ notification: Notification) {
         // NSHostingView otherwise defers its child layout until the next runloop turn,
         // leaving the OpenGL view at the previous size for a frame during fullscreen.
@@ -140,6 +152,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func hideApp() { NSApplication.shared.hide(nil) }
     @objc private func quit() { NSApplication.shared.terminate(nil) }
     @objc private func about() {
-        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationName: "熊猫播放器", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.2", .credits: NSAttributedString(string: "原生 macOS AI 视频播放器\nSwiftUI · AppKit · libmpv\nWhisper 语音识别 · Qwen 本地翻译\n高质量缩放 · 多格式播放 · 递归视频列表")])
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationName: "熊猫播放器", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.3", .credits: NSAttributedString(string: "原生 macOS AI 视频播放器\nSwiftUI · AppKit · libmpv\nWhisper 语音识别 · Qwen 本地翻译\n高质量缩放 · 多格式播放 · 递归视频列表")])
     }
 }

@@ -15,6 +15,8 @@
 - 参考 Vue 版的深色与蓝色主题，左侧播放列表 / 历史、主工具栏保留 AI 字幕入口，任务状态仅在运行时显示。
 - 后台递归扫描多层子文件夹，按完整路径自然排序，重叠目录与重复文件自动去重，无 10,000 文件截断。
 - Whisper + Qwen 完全本地识别翻译：流式逐段、整片批量、导入 SRT/VTT 后翻译，双语 / 原文 / 中文字幕及 SRT/VTT 导出。
+- 翻译使用字幕 ID 与结构约束保持逐条对应；有效译文即时保存，缺失 / 空白项最多单独重试两次。仍失败的条目保留原文并继续后续字幕，结束后可点击「重试翻译」仅补译未完成项。
+- 拦截「用户提供了额外信息」「以下是译文」等模型说明并单独重试，旧缓存中的这类内容会隐藏并清理；原台词本身谈到用户、信息或翻译时保留正常译文。
 - 识别语言选择、模型下载与目录选择、字幕缓存恢复、切换视频取消旧任务、退出清理 AI 进程。
 - 原生版使用蓝紫立体图标、Vue 版使用青绿几何图标，均包含熊猫、AI 神经节点与视频播放元素（PNG / ICNS / ICO），兼容旧版已有模型与 Lumen 播放列表。
 
@@ -64,7 +66,7 @@ open build/熊猫播放器.app
 ./scripts/package-mac.sh
 ```
 
-产物位于 `dist/PandaPlayer-0.3.2-arm64-mac.dmg` 和同名 ZIP。默认优先查找 Homebrew 的 libmpv，本机没有时使用已安装 IINA 的播放运行库。安装后不再依赖 IINA、旧版播放器或 Homebrew。仅复制所需动态库，保留来源与依赖致谢，并检查包内链接和签名。当前完整包面向 Apple Silicon，最低 macOS 26；未作 Apple 公证。
+产物位于 `dist/PandaPlayer-0.3.3-arm64-mac.dmg` 和同名 ZIP。默认优先查找 Homebrew 的 libmpv，本机没有时使用已安装 IINA 的播放运行库。安装后不再依赖 IINA、旧版播放器或 Homebrew。仅复制所需动态库，保留来源与依赖致谢，并检查包内链接和签名。当前完整包面向 Apple Silicon，最低 macOS 26；未作 Apple 公证。
 
 准备自己可再分发的 libmpv 构建，然后：
 
@@ -83,6 +85,7 @@ CONFIGURATION=release BUNDLE_MPV=1 \
 - 右上角齿轮或 `⌘,` 打开设置，分为「字幕与 AI、画面、声音、播放」。
 - 模型管理、识别模式、原声语言、字幕大小 / 偏移、画质增强、音轨、窗口置顶、循环和媒体信息统一放入设置。
 - 底部字幕图标快速切换显示方式、导入 / 翻译 / 导出字幕。
+- 亮度、精简播放和全屏按钮位于同一排；亮度按钮展开调节滑块。精简播放隐藏标题栏与列表，鼠标移动唤出控制条，按 Esc 或再次点击按钮还原。
 - 列表右上角 `+` 添加视频或文件夹，包含全部子文件夹；排序和清空也在此菜单。
 - 快进 / 后退保留键盘方向键，截图可从设置或文件菜单访问。
 
@@ -129,7 +132,27 @@ PANDAPLAYER_FULLSCREEN_TEST=1 ./scripts/test.sh
 ./scripts/test.sh
 ```
 
-包括 36 项核心逻辑检查，以及用仓库现有 FFmpeg 生成真实 H.264/AAC、H.264/AC-3 MKV、HEVC 10-bit、VP9 WebM、MPEG-4 AVI、多音轨和 ASS 字幕测试片。集成测试直接调用 libmpv，验证解码、时长、跳转、暂停和画面预设属性。
+包括 78 项核心逻辑检查，以及用仓库现有 FFmpeg 生成真实 H.264/AAC、H.264/AC-3 MKV、HEVC 10-bit、VP9 WebM、MPEG-4 AVI、多音轨和 ASS 字幕测试片。集成测试直接调用 libmpv，验证解码、时长、跳转、暂停和画面预设属性。
+
+翻译控制器的故障注入检查无需下载模型，使用 Python 3 在本机模拟漏译、空译文和截断输出，检查部分结果保存、后续字幕继续处理、缓存恢复和仅补译未完成项：
+
+```bash
+./scripts/test-translation.sh
+```
+
+已有 Qwen 模型时，可追加真实模型的多批字幕检查（含换行、引号、日语、重复文本和已有译文）：
+
+```bash
+.build/debug/PandaPlayer --ai-test --translation-cases /absolute/path/to/english-speech.mp4
+```
+
+已有 Whisper large-v3-turbo 与 Silero VAD 模型时，可运行真实 AI 服务回归检查（传入一段英语语音视频）：
+
+```bash
+.build/debug/PandaPlayer --ai-server-test /absolute/path/to/english-speech.mp4
+```
+
+检查静音首段、手动 / 自动语言、极短静音、正常语音、语音后静音、请求中途引擎退出和取消任务。Whisper 启动时关闭额外的语言概率计算，避免 VAD 过滤掉全部音频后在生成 JSON 时崩溃；正常识别的语言自动检测保留。
 
 在可访问图形服务的登录会话中，可追加 GPU 和窗口集成测试：
 

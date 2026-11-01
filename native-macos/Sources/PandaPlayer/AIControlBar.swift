@@ -56,6 +56,9 @@ struct AIStatusBar: View {
                     if ai.running { Text("\(Int(ai.percent))%").font(.system(size: 10, design: .monospaced)).foregroundStyle(Palette.muted) }
                     if ai.downloading { Text("\(Int(ai.downloadPercent))%").font(.system(size: 10, design: .monospaced)).foregroundStyle(Palette.muted) }
                     if ai.failure != nil {
+                        if !ai.running && ai.translationReady && ai.cues.contains(where: { $0.translation.isEmpty }) {
+                            Button("重试翻译") { store.translateSubtitles() }.buttonStyle(.plain).font(.system(size: 11))
+                        }
                         Button("设置") { store.openSettings(.subtitles) }.buttonStyle(.plain).font(.system(size: 11))
                         Button { ai.failure = nil } label: { Image(systemName: "xmark").font(.system(size: 10)) }.buttonStyle(.plain).help("关闭提示")
                     }

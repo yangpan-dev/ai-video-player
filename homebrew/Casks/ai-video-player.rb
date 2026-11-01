@@ -1,6 +1,6 @@
 cask "ai-video-player" do
-  version "0.3.2"
-  sha256 "7455c374ce318c76a48a266df156b11f323277fa089c1c0fd8b845fdaccb1049"
+  version "0.3.3"
+  sha256 "d952e1407ba3c7bb9a37315d96e844f25d0f595504ecc0530e499295e7245ee2"
 
   url "https://github.com/yangpan-dev/ai-video-player/releases/download/v#{version}/PandaPlayer-#{version}-arm64-mac.zip"
   name "熊猫播放器"

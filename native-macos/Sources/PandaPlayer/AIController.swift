@@ -37,6 +37,7 @@ final class AIController: ObservableObject {
     private var downloader: ModelDownload?
     private var job: AIJob?
     private var requestID = UUID()
+    private var untranslatedThisRun = Set<String>()
     private var source: URL?
     var onCuesChanged: (([SubtitleCue]) -> Void)?
     var modelReady: Bool { AIRuntime.model("ggml-\(selectedModel).bin") != nil }
@@ -47,7 +48,11 @@ final class AIController: ObservableObject {
         cancel(); source = url; cues = []; detectedLanguage = ""; failure = nil
         status = "本地 AI 字幕：识别原声并翻译为简体中文"; percent = 0
         if let data = try? Data(contentsOf: cacheURL(url)), let saved = try? JSONDecoder().decode(CachedSubtitles.self, from: data), saved.fingerprint == fingerprint(url) {
-            cues = saved.cues; detectedLanguage = saved.language; status = "已恢复 \(cues.count) 条 AI 字幕"
+            cues = SubtitleTranslation.removingCommentary(from: saved.cues); detectedLanguage = saved.language; status = "已恢复 \(cues.count) 条 AI 字幕"
+            if cues != saved.cues {
+                failure = "已隐藏旧字幕中的模型说明，保留原文。可点击“重试翻译”补译。"
+                saveCache(url)
+            }
         }
     }
     func cancel() {
@@ -59,7 +64,7 @@ final class AIController: ObservableObject {
         guard duration > 0 else { failure = "请等待视频打开完成"; return }
         guard let whisperModel = AIRuntime.model("ggml-\(selectedModel).bin") else { failure = "请先下载或选择 Whisper 模型目录"; return }
         guard let translationModel = AIRuntime.model(AIRuntime.translationFile) else { failure = "请先下载翻译模型，或选择旧版模型所在目录"; return }
-        cancel(); let id = UUID(); requestID = id
+        cancel(); let id = UUID(); requestID = id; untranslatedThisRun = []
         let operation = AIJob(); job = operation
         let selectedMode = mode, selectedLanguage = language
         let start = mode == .stream && fromCurrentPosition ? min(max(0, position), max(0, duration - 1)) : 0
@@ -120,6 +125,7 @@ final class AIController: ObservableObject {
                 }
                 try operation.check(); guard self.requestID == id else { throw CancellationError() }
                 self.percent = 100; self.status = "已完成 · \(self.cues.count) 句原文 / \(self.translatedCount) 句中文"
+                self.reportUntranslated()
                 self.publish(video)
             } catch {
                 if self.requestID == id && !operation.cancelled.isCancelled {
@@ -131,7 +137,7 @@ final class AIController: ObservableObject {
     func translateExisting(video: URL) {
         guard !cues.isEmpty else { failure = "请先导入 SRT/VTT 字幕或识别语音"; return }
         guard let model = AIRuntime.model(AIRuntime.translationFile) else { failure = "请先下载翻译模型"; return }
-        cancel(); let id = UUID(); requestID = id; let operation = AIJob(); job = operation
+        cancel(); let id = UUID(); requestID = id; untranslatedThisRun = []; let operation = AIJob(); job = operation
         running = true; failure = nil; percent = 0
         task = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -143,29 +149,40 @@ final class AIController: ObservableObject {
                 var context = [String]()
                 try await self.translatePending(server: server, operation: operation, id: id, video: video, context: &context)
                 guard self.requestID == id else { return }
-                self.percent = 100; self.status = "翻译完成 · \(self.translatedCount) 句中文"; self.publish(video)
+                self.percent = 100; self.status = "翻译完成 · \(self.translatedCount) 句中文"; self.reportUntranslated(); self.publish(video)
             } catch { if self.requestID == id && !operation.cancelled.isCancelled { self.failure = error.localizedDescription; self.status = "翻译失败，已保留原文" } }
         }
     }
     @MainActor private func translatePending(server: LocalAIServer, operation: AIJob, id: UUID, video: URL, context: inout [String]) async throws {
-        while let first = cues.firstIndex(where: { $0.translation.isEmpty }) {
+        while true {
             try operation.check(); guard requestID == id else { throw CancellationError() }
-            let indices = Array(cues.indices.filter { $0 >= first && cues[$0].translation.isEmpty }.prefix(4))
-            let lines = indices.map { cues[$0].text }
+            let indices = Array(cues.indices.filter { cues[$0].translation.isEmpty && !untranslatedThisRun.contains(cues[$0].id.uuidString) }.prefix(4))
+            if indices.isEmpty { return }
+            let lines = indices.map { TranslationLine(id: cues[$0].id.uuidString, text: cues[$0].text) }
             status = "翻译中 · \(translatedCount) / \(cues.count) 句"
-            let translated: [String]
-            do { translated = try await server.translate(lines, language: detectedLanguage.isEmpty ? language : detectedLanguage, context: context, job: operation) }
-            catch {
-                try operation.check()
-                if lines.count == 1 { throw error }
-                var singles = [String]()
-                for line in lines { singles += try await server.translate([line], language: detectedLanguage, context: context, job: operation) }
-                translated = singles
-            }
+            let sourceLanguage = detectedLanguage.isEmpty ? language : detectedLanguage
+            let previousContext = context
+            let unresolved = try await SubtitleTranslation.resolve(lines, check: {
+                try operation.check(); guard self.requestID == id else { throw CancellationError() }
+            }, request: { items, retry in
+                try await server.translate(items, language: sourceLanguage, context: previousContext, job: operation, retry: retry)
+            }, accept: { values in
+                for index in indices {
+                    if let value = values[self.cues[index].id.uuidString] { self.cues[index].translation = value }
+                }
+                self.publish(video)
+                if self.mode == .batch { self.percent = 70 + Double(self.translatedCount) / Double(max(1, self.cues.count)) * 30 }
+            })
             try operation.check(); guard requestID == id else { throw CancellationError() }
-            for (offset, index) in indices.enumerated() { cues[index].translation = translated[offset] }
-            context = lines; publish(video)
-            if mode == .batch { percent = 70 + Double(translatedCount) / Double(max(1, cues.count)) * 30 }
+            untranslatedThisRun.formUnion(unresolved)
+            context = lines.map(\.text)
+        }
+    }
+    private func reportUntranslated() {
+        let remaining = cues.count - translatedCount
+        if remaining > 0 {
+            status = "已完成 · \(translatedCount) / \(cues.count) 句中文 · \(remaining) 句待重试"
+            failure = "\(remaining) 条字幕暂未生成有效译文，已保留原文和成功译文。可点击“重试翻译”仅补译未完成条目。"
         }
     }
     func importCues(_ values: [SubtitleCue], video: URL) { cancel(); cues = values; display = .bilingual; status = "已导入 \(values.count) 条字幕，可继续翻译为中文"; publish(video) }
@@ -182,6 +199,10 @@ final class AIController: ObservableObject {
     private func publish(_ video: URL) {
         guard source == video else { return }
         onCuesChanged?(cues)
+        saveCache(video)
+    }
+    private func saveCache(_ video: URL) {
+        guard source == video else { return }
         let url = cacheURL(video)
         do { try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true); try JSONEncoder().encode(CachedSubtitles(fingerprint: fingerprint(video), language: detectedLanguage, cues: cues)).write(to: url, options: .atomic) }
         catch { failure = "字幕已生成，但缓存保存失败：\(error.localizedDescription)" }

@@ -4,7 +4,7 @@ import PlayerCore
 // A standalone test executable also runs on machines with Command Line Tools
 // only (where XCTest is not shipped). Each group checks a user-facing invariant.
 @main enum CoreChecks {
-    static func main() {
+    static func main() async {
         var checks = 0
         func expect(_ condition: @autoclosure () -> Bool, _ name: String) {
             guard condition() else { fputs("FAIL: \(name)\n", stderr); exit(1) }
@@ -61,6 +61,8 @@ import PlayerCore
             expect(SubtitleCodec.parse(srt).count == 2, "SRT export preserves cue count and timeline")
             expect(SubtitleCodec.parse("1\n00:70:00,000 --> 00:70:01,000\ninvalid").isEmpty, "reject malformed subtitle timestamp")
         } catch { fputs("FAIL: \(error)\n", stderr); exit(1) }
+        do { checks += try await TranslationChecks.run() }
+        catch { fputs("FAIL: translation checks: \(error)\n", stderr); exit(1) }
         print("PASS: \(checks) core checks")
     }
 }

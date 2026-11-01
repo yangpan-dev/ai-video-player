@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, toRefs, watch } from 'vue'
 import type { SubtitleSegment } from '@shared/types'
 import SubtitleOverlay from './SubtitleOverlay.vue'
+import AppIcon from './AppIcon.vue'
 import { playerPreferences } from '../lib/preferences'
 
 const props = defineProps<{
@@ -43,6 +44,7 @@ const { volume, muted, brightness, playbackRate, subtitleMode, fontSize, bottomM
 const controlsVisible = ref(false)
 const osd = ref<string | null>(null)
 const minimalBarVisible = ref(false)
+const brightnessOpen = ref(false)
 const cursorHidden = ref(false)
 
 let hideTimer: ReturnType<typeof setTimeout> | null = null
@@ -291,6 +293,10 @@ function findActive(t: number): SubtitleSegment | null {
 const progress = computed(() => (duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0))
 // 音量/亮度滑块填充百分比（用于画出与播放进度一致的细进度条）
 const volumeFill = computed(() => `${(volume.value * 100).toFixed(0)}%`)
+const brightnessFill = computed(() => `${((brightness.value - 0.4) / 1.2 * 100).toFixed(0)}%`)
+function closeBrightness(event: PointerEvent): void {
+  if (event.target instanceof Element && !event.target.closest('.brightness-control')) brightnessOpen.value = false
+}
 function fmtTime(s: number): string {
   if (!isFinite(s) || s < 0) s = 0
   const h = Math.floor(s / 3600)
@@ -353,10 +359,12 @@ function onKeydown(e: KeyboardEvent): void {
 
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
+  window.addEventListener('pointerdown', closeBrightness)
   document.addEventListener('fullscreenchange', onFullscreenChange)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('pointerdown', closeBrightness)
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   clearCursorHideTimer()
   if (hideTimer) clearTimeout(hideTimer)
@@ -403,7 +411,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- IINA 底部控制栏 -->
-    <div v-show="!minimal" class="control-bar" :class="{ visible: controlsVisible }">
+    <div v-show="!minimal" class="control-bar" :class="{ visible: controlsVisible || brightnessOpen }">
       <button class="icon-btn" :disabled="!hasPrevious" title="上一集（P）" aria-label="上一集" @click="emit('previous')">⏮</button>
       <button class="icon-btn play" title="播放 / 暂停（空格）" @click="togglePlay">
         {{ isPlaying ? '⏸' : '▶' }}
@@ -446,8 +454,19 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <button class="icon-btn icon-lg" title="全屏（双击画面亦可）" @click="toggleFullscreen">⛶</button>
-      <button class="icon-btn icon-lg" title="设置" @click="emit('settings')" aria-label="设置">⚙</button>
+      <div class="player-actions">
+        <div class="brightness-control" @keydown.esc.stop="brightnessOpen = false">
+          <button class="icon-btn icon-lg" title="亮度" aria-label="亮度" :aria-expanded="brightnessOpen" aria-controls="brightness-panel" @click="brightnessOpen = !brightnessOpen"><AppIcon name="brightness" /></button>
+          <div v-if="brightnessOpen" id="brightness-panel" class="brightness-panel">
+            <label for="player-brightness">亮度 <output>{{ Math.round(brightness * 100) }}%</output></label>
+            <input id="player-brightness" v-model.number="brightness" class="vol-slider" type="range" min="0.4" max="1.6" step="0.05" :style="{ '--fill': brightnessFill }" />
+            <button class="icon-btn" @click="brightness = 1">恢复原始亮度</button>
+          </div>
+        </div>
+        <button class="icon-btn icon-lg" title="精简播放（M）" aria-label="精简播放" @click="brightnessOpen = false; emit('toggleMinimal')"><AppIcon name="minimal" /></button>
+        <button class="icon-btn icon-lg" title="全屏（双击画面亦可）" aria-label="全屏" @click="toggleFullscreen">⛶</button>
+        <button class="icon-btn icon-lg" title="设置" @click="emit('settings')" aria-label="设置">⚙</button>
+      </div>
     </div>
 
     <!-- 精简模式：鼠标移动唤出的临时控制条（右上角还原） -->
@@ -549,9 +568,27 @@ onBeforeUnmount(() => {
 .icon-btn:disabled { opacity: 0.3; cursor: default; }
 .shortcut-help { color: var(--text-dim); line-height: 1.8; font-size: 12px; }
 @media (max-width: 1100px) {
-  .sub-sync, .brightness-control { display: none; }
+  .sub-sync { display: none; }
   .control-bar { gap: 6px; }
 }
+.player-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.brightness-control { position: relative; }
+.brightness-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 12px);
+  width: 190px;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+  border: 1px solid #ffffff20;
+  border-radius: 10px;
+  background: #171a21;
+  box-shadow: 0 8px 28px #0008;
+}
+.brightness-panel label { display: flex; justify-content: space-between; font-size: 12px; }
+.brightness-panel output { color: #aaa; font-variant-numeric: tabular-nums; }
+.brightness-panel .vol-slider { width: 100%; margin: 0; }
 .icon-lg {
   font-size: 18px;
   padding: 6px 12px;

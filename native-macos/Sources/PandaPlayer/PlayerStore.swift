@@ -36,6 +36,8 @@ final class PlayerStore: ObservableObject {
     @Published var settingsSection: SettingsSection = .subtitles
     @Published var mediaDetailsExpanded = false
     @Published var sidebarVisible = true
+    @Published var minimalMode = false
+    @Published var brightnessVisible = false
     @Published var compareOriginal = false { didSet { applyPicture() } }
     @Published var preset: PicturePreset = .balanced
     @Published var picture = PicturePreset.balanced.settings { didSet { schedulePicture() } }
@@ -280,6 +282,10 @@ final class PlayerStore: ObservableObject {
             let result = engine?.command(["screenshot-to-file", url.path, "subtitles"]) ?? -1
             if result < 0 { error = "截图失败" } else { showNotice("截图已保存") }
         }
+    }
+    func toggleMinimal() {
+        brightnessVisible = false; minimalMode.toggle(); controlsVisible = true
+        NotificationCenter.default.post(name: .lumenRevealCursor, object: nil)
     }
     func toggleFullscreen() {
         guard let window, !fullscreenTransitioning else { return }
