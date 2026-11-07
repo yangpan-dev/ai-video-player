@@ -48,7 +48,7 @@ onMounted(() => dialog.value?.showModal())
           <label>专注观影<button @click="emit('toggleMinimal')">进入精简模式</button></label>
         </section>
         <section><h3>存储与维护</h3><label>转换缓存 · {{ cacheSize }}<button :disabled="cacheDisabled" @click="emit('clearCache')">清理缓存</button></label></section>
-        <section class="shortcuts"><h3>快捷键</h3><p>空格 播放 / 暂停 · ← → 快进 / 后退 · ↑ ↓ 音量</p><p>F 全屏 · V 静音 · P / N 上一个 / 下一个</p><p>[ / ] 字幕同步 · M 精简模式 · Esc 退出精简模式</p><p>⌘ / Ctrl + O 打开视频 · ⌘ / Ctrl + , 设置</p></section>
+        <section class="shortcuts"><h3>快捷键</h3><p>空格 播放 / 暂停 · ← → 快进 / 后退 · ↑ ↓ 音量</p><p>F 全屏 · V 静音 · P / N 上一个 / 下一个</p><p>[ / ] 字幕同步 · M 精简模式 · Esc 退出精简模式</p><p>⌘ / Ctrl + O 打开音视频 · ⌘ / Ctrl + , 设置</p></section>
       </template>
     </div>
   </dialog>

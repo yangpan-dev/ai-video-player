@@ -19,14 +19,24 @@ cat > "$fixtures/subtitle.srt" <<'SUBTITLE'
 PandaPlayer · 原生字幕测试
 SUBTITLE
 "$ffmpeg" -hide_banner -loglevel error -y -i "$fixtures/h264.mp4" -f lavfi -i 'sine=frequency=660:sample_rate=48000' -i "$fixtures/subtitle.srt" -map 0:v -map 0:a -map 1:a -map 2:s -t 6 -c:v copy -c:a aac -c:s ass -metadata:s:a:0 language=eng -metadata:s:a:1 language=jpn "$fixtures/multitrack-ass.mkv"
+audio_fixtures=()
+for format in mp3:libmp3lame m4a:aac wav:pcm_s16le flac:flac ogg:libvorbis opus:libopus aiff:pcm_s16be wma:wmav2; do
+    audio_file="$fixtures/audio.${format%%:*}"
+    "$ffmpeg" -hide_banner -loglevel error -y -i "$fixtures/h264.mp4" -vn -c:a "${format#*:}" "$audio_file"
+    audio_fixtures+=("$audio_file")
+done
+"$ffmpeg" -hide_banner -loglevel error -y -i "$fixtures/h264.mp4" -frames:v 1 "$fixtures/cover.jpg"
+"$ffmpeg" -hide_banner -loglevel error -y -i "$fixtures/audio.mp3" -i "$fixtures/cover.jpg" -map 0:a -map 1:v -c copy -disposition:v:0 attached_pic "$fixtures/covered.mp3"
+audio_fixtures+=("$fixtures/covered.mp3")
 swift build --product PandaPlayer --build-system native --disable-sandbox --cache-path "$PWD/.build/cache" --config-path "$PWD/.build/config" --security-path "$PWD/.build/security"
 binary="$(swift build --build-system native --disable-sandbox --cache-path "$PWD/.build/cache" --config-path "$PWD/.build/config" --security-path "$PWD/.build/security" --show-bin-path)/PandaPlayer"
-"$binary" --smoke-test "$fixtures/h264.mp4" "$fixtures/h264-ac3.mkv" "$fixtures/hevc10.mkv" "$fixtures/vp9.webm" "$fixtures/mpeg4.avi" "$fixtures/multitrack-ass.mkv"
+"$binary" --smoke-test "$fixtures/h264.mp4" "$fixtures/h264-ac3.mkv" "$fixtures/hevc10.mkv" "$fixtures/vp9.webm" "$fixtures/mpeg4.avi" "$fixtures/multitrack-ass.mkv" "${audio_fixtures[@]}"
 if [ "${PANDAPLAYER_RENDER_TEST:-0}" = "1" ]; then
     "$binary" --render-test "$fixtures/h264.mp4" "$fixtures/hevc10.mkv" "$fixtures/multitrack-ass.mkv"
 fi
 if [ "${PANDAPLAYER_WINDOW_TEST:-0}" = "1" ]; then
     PANDAPLAYER_STATE_DIR="$PWD/.build/window-test" "$binary" --window-test "$fixtures/h264-ac3.mkv"
+    PANDAPLAYER_STATE_DIR="$PWD/.build/audio-window-test" "$binary" --window-test --audio-test --subtitle-test "$fixtures/covered.mp3"
 fi
 
 if [ "${PANDAPLAYER_FULLSCREEN_TEST:-0}" = "1" ]; then

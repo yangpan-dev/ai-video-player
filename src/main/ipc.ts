@@ -14,12 +14,13 @@ import {
   addToHistory,
   clearHistory,
   addFilesToPlaylist,
+  addPathsToPlaylist,
   addFolderToPlaylist,
   saveProgress,
   getProgress
 } from './services/library'
 import { cacheStats, clearCache, cancelConvert, prepareConversion, probePlayback, releasePlaybackCache } from './services/playbackCache'
-import { VIDEO_EXTENSIONS } from '../shared/media'
+import { MEDIA_EXTENSIONS } from '../shared/media'
 
 export function registerIpc(): void {
   let activeAiRequest: string | null = null
@@ -100,17 +101,18 @@ export function registerIpc(): void {
   ipcMain.handle('library:clear-playlist', () => clearPlaylist())
   ipcMain.handle('library:add-history', (_e, path: string, title: string) => addToHistory(path, title))
   ipcMain.handle('library:clear-history', () => clearHistory())
+  ipcMain.handle('library:add-paths', (_event, paths: string[]) => addPathsToPlaylist(paths))
 
   ipcMain.handle('library:add-files', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return null
     const { canceled, filePaths } = await dialog.showOpenDialog(win, {
-      title: '选择视频文件（可多选）',
+      title: '选择音视频文件（可多选）',
       properties: ['openFile', 'multiSelections'],
       filters: [
         {
-          name: '视频文件',
-          extensions: VIDEO_EXTENSIONS
+          name: '音视频文件',
+          extensions: MEDIA_EXTENSIONS
         },
         { name: '所有文件', extensions: ['*'] }
       ]
@@ -123,7 +125,7 @@ export function registerIpc(): void {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return null
     const { canceled, filePaths } = await dialog.showOpenDialog(win, {
-      title: '选择视频文件夹（会递归扫描子文件夹）',
+      title: '选择媒体文件夹（会递归扫描子文件夹）',
       properties: ['openDirectory']
     })
     if (canceled || filePaths.length === 0) return null
@@ -182,10 +184,10 @@ export function registerIpc(): void {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return null
     const { canceled, filePaths } = await dialog.showOpenDialog(win, {
-      title: '选择视频文件',
+      title: '选择音视频文件',
       properties: ['openFile'],
       filters: [
-        { name: '视频文件', extensions: VIDEO_EXTENSIONS },
+        { name: '音视频文件', extensions: MEDIA_EXTENSIONS },
         { name: '所有文件', extensions: ['*'] }
       ]
     })

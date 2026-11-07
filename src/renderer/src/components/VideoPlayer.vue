@@ -15,6 +15,7 @@ const props = defineProps<{
   hasPrevious?: boolean
   hasNext?: boolean
   settingsOpen?: boolean
+  audioOnly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -128,7 +129,7 @@ function toggleMute(): void {
 function onError(): void {
   const code = videoEl.value?.error?.code ?? 0
   if (!props.src || code === 1) return
-  const message = code === 2 ? '视频读取失败，请检查文件是否仍可访问' : '当前设备无法解码该视频或音轨'
+  const message = code === 2 ? '媒体读取失败，请检查文件是否仍可访问' : '当前设备无法解码该文件的音视频流'
   emit('error', { message, code, src: props.src })
 }
 
@@ -385,6 +386,7 @@ onBeforeUnmount(() => {
     <video
       ref="videoEl"
       class="video"
+      :class="{ 'audio-media': audioOnly }"
       :src="src ?? undefined"
       :style="{ filter: `brightness(${brightness})` }"
       @timeupdate="onTimeUpdate"
@@ -395,6 +397,12 @@ onBeforeUnmount(() => {
       @error="onError"
       @click="onVideoClick"
     ></video>
+
+    <div v-if="audioOnly" class="audio-playback" aria-label="音频播放">
+      <div class="audio-art"><AppIcon name="music" /></div>
+      <div class="audio-title">{{ title || '音频' }}</div>
+      <div class="audio-label">音频播放</div>
+    </div>
 
     <SubtitleOverlay
       :segment="active"
@@ -411,12 +419,12 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- IINA 底部控制栏 -->
-    <div v-show="!minimal" class="control-bar" :class="{ visible: controlsVisible || brightnessOpen }">
-      <button class="icon-btn" :disabled="!hasPrevious" title="上一集（P）" aria-label="上一集" @click="emit('previous')">⏮</button>
+    <div v-show="!minimal" class="control-bar" :class="{ visible: audioOnly || controlsVisible || brightnessOpen }">
+      <button class="icon-btn" :disabled="!hasPrevious" title="上一个（P）" aria-label="上一个" @click="emit('previous')">⏮</button>
       <button class="icon-btn play" title="播放 / 暂停（空格）" @click="togglePlay">
         {{ isPlaying ? '⏸' : '▶' }}
       </button>
-      <button class="icon-btn" :disabled="!hasNext" title="下一集（N）" aria-label="下一集" @click="emit('next')">⏭</button>
+      <button class="icon-btn" :disabled="!hasNext" title="下一个（N）" aria-label="下一个" @click="emit('next')">⏭</button>
       <span class="time">{{ fmtTime(currentTime) }}</span>
       <div
         ref="seekBarEl"
@@ -498,6 +506,31 @@ onBeforeUnmount(() => {
   display: block;
   cursor: pointer;
 }
+.audio-media { opacity: 0; }
+.audio-playback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 40px 40px 120px;
+  background: radial-gradient(ellipse at 50% 35%, #1b2938, #0f1115 75%);
+  pointer-events: none;
+}
+.audio-art {
+  display: grid;
+  place-items: center;
+  width: 144px;
+  height: 144px;
+  border-radius: 30px;
+  background: #4f8cff1a;
+  color: var(--accent);
+}
+.audio-art :deep(svg) { width: 64px; height: 64px; stroke-width: 1.3; }
+.audio-title { font-size: 20px; font-weight: 500; text-align: center; overflow-wrap: anywhere; }
+.audio-label { font-size: 12px; color: var(--text-dim); }
 .player:fullscreen.hide-cursor,
 .player:fullscreen.hide-cursor :deep(*) {
   cursor: none !important;

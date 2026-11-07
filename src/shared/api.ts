@@ -51,6 +51,7 @@ export interface Api {
   addToHistory(path: string, title: string): Promise<Library>
   clearHistory(): Promise<Library>
   addVideoFiles(): Promise<{ library: Library; added: number } | null>
+  addMediaPaths(paths: string[]): Promise<{ library: Library; added: number; files: string[] }>
   addFolderToPlaylist(): Promise<{ library: Library; added: number } | null>
   saveProgress(path: string, seconds: number): Promise<void>
   getProgress(path: string): Promise<number>

@@ -6,8 +6,8 @@
     <key>CFBundleIdentifier</key><string>dev.panda.player</string>
     <key>CFBundleExecutable</key><string>PandaPlayer</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.3.3</string>
-    <key>CFBundleVersion</key><string>7</string>
+    <key>CFBundleShortVersionString</key><string>0.3.4</string>
+    <key>CFBundleVersion</key><string>8</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>NSPrincipalClass</key><string>NSApplication</string>
@@ -15,10 +15,11 @@
     <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
     <key>NSHumanReadableCopyright</key><string>PandaPlayer contributors</string>
     <key>CFBundleDocumentTypes</key><array><dict>
-        <key>CFBundleTypeName</key><string>Video and subtitle files</string>
+        <key>CFBundleTypeName</key><string>Audio, video and subtitle files</string>
         <key>CFBundleTypeRole</key><string>Viewer</string>
         <key>LSHandlerRank</key><string>Alternate</string>
         <key>CFBundleTypeExtensions</key><array>
+            <string>mp3</string><string>m4a</string><string>m4b</string><string>aac</string><string>wav</string><string>wave</string><string>flac</string><string>ogg</string><string>oga</string><string>opus</string><string>aif</string><string>aiff</string><string>aifc</string><string>wma</string><string>ape</string><string>ac3</string><string>eac3</string><string>dts</string><string>mka</string><string>amr</string><string>wv</string>
             <string>mkv</string><string>mp4</string><string>avi</string><string>mov</string><string>webm</string><string>m4v</string><string>ts</string><string>mts</string><string>m2ts</string><string>mpg</string><string>mpeg</string><string>vob</string><string>wmv</string><string>flv</string><string>ogv</string><string>3gp</string><string>rm</string><string>rmvb</string><string>mxf</string><string>asf</string><string>srt</string><string>ass</string><string>ssa</string><string>vtt</string><string>sup</string><string>sub</string>
         </array>
     </dict></array>

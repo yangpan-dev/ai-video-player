@@ -51,6 +51,7 @@ app.whenReady().then(async () => {
       assert.equal(state.active, item.source)
       assert.ok(state.time > 0.1 && state.ready >= 2, `${item.name}: ${JSON.stringify(state)}`)
       assert.ok(!state.error, `${item.name}: ${state.error}`)
+      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.audio-playback')`), !!item.audioOnly, `${item.name}: audio view`)
       await win.webContents.executeJavaScript(`new Promise((resolve, reject) => {
         const v = document.querySelector('video'); v.pause();
         const timer = setTimeout(() => reject(new Error('seek timeout')), 4000);
@@ -61,7 +62,7 @@ app.whenReady().then(async () => {
     }
     if (process.env.PLAYER_UI_OUTPUT) writeFileSync(join(process.env.PLAYER_UI_OUTPUT, 'playing.png'), (await win.webContents.capturePage()).toPNG())
     // Fault injection exercises device-dependent decode failure after direct/remux startup.
-    for (const name of ['normal.mp4', 'copy.mkv']) {
+    for (const name of ['normal.mp4', 'copy.mkv', 'covered.mp3']) {
       const item = manifest.outputs.find((o) => o.name === name)
       await win.webContents.executeJavaScript(`(() => {
         [...document.querySelectorAll('.sidebar-item-title')].find(e => e.title === ${JSON.stringify(item.source)}).click();
@@ -115,6 +116,10 @@ app.whenReady().then(async () => {
     // Import through the real preload/IPC/dialog path, with a deterministic file choice.
     const subtitle = join(manifest.dir, 'imported.vtt')
     writeFileSync(subtitle, 'WEBVTT\n\n00:00.000 --> 00:04.000\nImported line one\n第二行字幕')
+    const audioSource = manifest.outputs.find(item => item.name === 'music.mp3').source
+    await select(audioSource)
+    const imported = await win.webContents.executeJavaScript(`window.api.addMediaPaths([${JSON.stringify(audioSource)}, ${JSON.stringify(audioSource)}])`)
+    assert.deepEqual(imported.files, [audioSource])
     electron.dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [subtitle] })
     await win.webContents.executeJavaScript(`(() => {
       document.querySelector('summary[aria-label="字幕菜单"]').click();
@@ -122,7 +127,9 @@ app.whenReady().then(async () => {
     })()`)
     await delay(200)
     assert.match(await win.webContents.executeJavaScript(`document.querySelector('.subtitle-overlay')?.textContent`), /Imported line one\s+第二行字幕/)
-    console.log('PASS external subtitles import through the UI with all lines preserved')
+    assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.audio-playback')?.getAttribute('aria-label')`), '音频播放')
+    if (process.env.PLAYER_UI_OUTPUT) writeFileSync(join(process.env.PLAYER_UI_OUTPUT, 'audio.png'), (await win.webContents.capturePage()).toPNG())
+    console.log('PASS audio import through IPC and subtitles displayed on the audio view')
 
     await win.webContents.executeJavaScript(`(() => {
       const volume = document.querySelector('input[title="音量"]'); volume.value = '0.35'; volume.dispatchEvent(new Event('input', { bubbles: true }));
@@ -150,12 +157,12 @@ app.whenReady().then(async () => {
     console.log('PASS preferences survive source changes and renderer reload')
 
     await win.webContents.executeJavaScript(`(() => {
-      const input = document.querySelector('input[aria-label="搜索视频"]'); input.value = 'surround'; input.dispatchEvent(new Event('input', { bubbles: true }));
+      const input = document.querySelector('input[aria-label="搜索音视频"]'); input.value = 'surround'; input.dispatchEvent(new Event('input', { bubbles: true }));
     })()`)
     await delay(50)
     assert.equal(await win.webContents.executeJavaScript(`document.querySelectorAll('.sidebar-item').length`), 1)
     await win.webContents.executeJavaScript(`(() => {
-      const input = document.querySelector('input[aria-label="搜索视频"]'); input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true }));
+      const input = document.querySelector('input[aria-label="搜索音视频"]'); input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true }));
     })()`)
     await delay(50)
     const order = await win.webContents.executeJavaScript(`[...document.querySelectorAll('.sidebar-item-title')].map(e => e.title)`)
@@ -237,19 +244,35 @@ app.whenReady().then(async () => {
       await delay(100)
     }
     assert.deepEqual(await cursors(), Array(5).fill('none'))
+    await win.webContents.executeJavaScript(`(() => {
+      window.__playerMouseMoves = 0;
+      document.querySelector('.player').addEventListener('mousemove', () => window.__playerMouseMoves++);
+    })()`)
     let mouseOffset = 0
-    const moveMouse = async () => {
+    const moveMouse = async (nativeInput = true) => {
+      const previousMoves = await win.webContents.executeJavaScript('window.__playerMouseMoves')
       const point = await win.webContents.executeJavaScript(`(() => {
         const rect = document.querySelector('video').getBoundingClientRect();
         return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
       })()`)
-      win.webContents.sendInputEvent({ type: 'mouseMove', x: point.x + mouseOffset++, y: point.y })
-      await delay(50)
+      if (nativeInput) {
+        mouseOffset += 24
+        win.webContents.sendInputEvent({ type: 'mouseMove', x: point.x + mouseOffset, y: point.y })
+      } else {
+        // The first move checks Electron input delivery. macOS can drop a second
+        // synthetic native move, so test the timer reset at the DOM event boundary.
+        await win.webContents.executeJavaScript(`document.querySelector('.player').dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))`)
+      }
+      for (let n = 0; n < 20; n++) {
+        if (await win.webContents.executeJavaScript('window.__playerMouseMoves') > previousMoves) return
+        await delay(50)
+      }
+      assert.fail('synthetic mouse movement did not reach the player')
     }
     await moveMouse()
     assert.ok((await cursors()).every(cursor => cursor !== 'none'))
     await delay(1500)
-    await moveMouse()
+    await moveMouse(false)
     await delay(1500)
     assert.ok((await cursors()).every(cursor => cursor !== 'none'), 'movement must restart the idle timer')
     // Native fullscreen can emit another mousemove while the window settles.

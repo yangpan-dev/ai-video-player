@@ -25,6 +25,7 @@ interface LoadedVideo {
   path: string
   url: string
   needsRemux: boolean
+  audioOnly: boolean
 }
 
 const video = ref<LoadedVideo | null>(null)
@@ -119,7 +120,7 @@ function onPlayerEnded(): void {
 }
 
 async function importSubtitles(path?: string): Promise<void> {
-  if (!video.value) { error.value = '请先打开视频，再导入字幕'; return }
+  if (!video.value) { error.value = '请先打开音视频，再导入字幕'; return }
   const seq = openSeq
   try {
     const result = await window.api.importSubtitles(path)
@@ -274,7 +275,7 @@ function saveCurrentProgress(): void {
   }
 }
 
-/** 打开视频后：自动加入历史 + 播放列表，加载进度和上次保存的字幕 */
+/** 打开音视频后：自动加入历史 + 播放列表，加载进度和上次保存的字幕 */
 let openSeq = 0
 
 async function afterVideoOpened(path: string, seq: number): Promise<void> {
@@ -306,20 +307,28 @@ function setVideoFromPath(path: string): void {
   currentVideoTime = 0
   lastSavedTime = -1
   appliedMode.value = 'direct'
-  video.value = { sourcePath: path, path, url: '', needsRemux: true }
+  video.value = { sourcePath: path, path, url: '', needsRemux: true, audioOnly: false }
   resetResults()
   // 每次打开都检查实际流，MP4 也可能需要修复音频或转码。
   void afterVideoOpened(path, ++openSeq).catch(() => {})
   void autoConvert(path)
 }
 
-function onDropped(file: File): void {
+let dropSeq = 0
+async function onDropped(files: File[]): Promise<void> {
+  const drop = ++dropSeq
+  const seq = openSeq
   try {
-    const path = window.api.getPathForFile(file)
-    if (!path) throw new Error('请拖入本地视频文件')
-    if (/\.(srt|vtt)$/i.test(path)) { void importSubtitles(path); return }
-    setVideoFromPath(path)
+    const paths = files.map(file => window.api.getPathForFile(file)).filter(Boolean)
+    if (!paths.length) throw new Error('请拖入本地音视频文件')
+    if (paths.length === 1 && /\.(srt|vtt)$/i.test(paths[0])) { await importSubtitles(paths[0]); return }
+    const result = await window.api.addMediaPaths(paths)
+    if (seq !== openSeq || drop !== dropSeq) return
+    library.value = result.library
+    if (!result.files.length) { statusMsg.value = '没有找到可播放的音视频文件'; return }
+    setVideoFromPath(result.files[0])
   } catch (e) {
+    if (seq !== openSeq || drop !== dropSeq) return
     error.value = '无法读取文件路径：' + (e instanceof Error ? e.message : String(e))
   }
 }
@@ -347,7 +356,7 @@ async function addFiles(): Promise<void> {
     const res = await window.api.addVideoFiles()
     if (!res) return
     library.value = res.library
-    statusMsg.value = res.added > 0 ? `已添加 ${res.added} 个视频到播放列表` : '所选视频已在播放列表中'
+    statusMsg.value = res.added > 0 ? `已添加 ${res.added} 个媒体文件到播放列表` : '所选文件已在播放列表中'
   } catch {
     /* 忽略 */
   }
@@ -359,7 +368,7 @@ async function addFolder(): Promise<void> {
     if (!res) return
     library.value = res.library
     statusMsg.value =
-      res.added > 0 ? `已从文件夹添加 ${res.added} 个视频到播放列表` : '文件夹中没有新的视频文件'
+      res.added > 0 ? `已从文件夹添加 ${res.added} 个媒体文件到播放列表` : '文件夹中没有新的音视频文件'
   } catch {
     /* 忽略 */
   }
@@ -633,23 +642,25 @@ async function autoConvert(sourcePath: string, force?: ConversionMode): Promise<
     if (!current()) return
     probing.value = false
     transcodeDuration = probe.duration
+    const audioOnly = !probe.videoCodec && !!probe.audioCodec
+    if (video.value) video.value.audioOnly = audioOnly
     let mode: PlaybackMode = force ?? playbackMode(sourcePath, probe)
     if (mode === 'direct') {
       appliedMode.value = mode
-      video.value = { sourcePath, path: sourcePath, url: mediaUrl(sourcePath), needsRemux: false }
+      video.value = { sourcePath, path: sourcePath, url: mediaUrl(sourcePath), needsRemux: false, audioOnly }
       statusMsg.value = ''
       return
     }
     if (video.value) video.value.needsRemux = true
     if (mode === 'remux' || mode === 'audio') {
       remuxing.value = true
-      statusMsg.value = mode === 'audio' ? '正在兼容音轨，保留原始视频画质…' : '正在快速整理视频封装，保留原始画质…'
+      statusMsg.value = audioOnly ? '正在处理音频兼容性…' : mode === 'audio' ? '正在兼容音轨，保留原始视频画质…' : '正在快速整理视频封装，保留原始画质…'
       try {
         const result = await window.api.remuxVideo(sourcePath, mode === 'audio')
         if (!current()) return
         appliedMode.value = mode
-        video.value = { sourcePath, path: result.outputPath, url: mediaUrl(result.outputPath), needsRemux: false }
-        statusMsg.value = result.cached ? '已使用兼容播放缓存' : '兼容处理完成，视频画质未改变'
+        video.value = { sourcePath, path: result.outputPath, url: mediaUrl(result.outputPath), needsRemux: false, audioOnly }
+        statusMsg.value = result.cached ? '已使用兼容播放缓存' : audioOnly ? '音频兼容处理完成' : '兼容处理完成，视频画质未改变'
         return
       } catch (e) {
         if (!current() || (e instanceof Error && e.message.includes('已取消'))) return
@@ -661,11 +672,11 @@ async function autoConvert(sourcePath: string, force?: ConversionMode): Promise<
     transcoding.value = true
     transcodePercent.value = 0
     progressLog = ''
-    statusMsg.value = '正在转换为兼容视频，首次处理需要等待，完成后会自动播放…'
+    statusMsg.value = audioOnly ? '正在转换为兼容音频，完成后会自动播放…' : '正在转换为兼容视频，首次处理需要等待，完成后会自动播放…'
     const result = await window.api.transcodeVideo(sourcePath)
     if (!current()) return
     appliedMode.value = 'transcode'
-    video.value = { sourcePath, path: result.outputPath, url: mediaUrl(result.outputPath), needsRemux: false }
+    video.value = { sourcePath, path: result.outputPath, url: mediaUrl(result.outputPath), needsRemux: false, audioOnly }
     statusMsg.value = result.cached ? '已使用兼容播放缓存' : '兼容处理完成'
   } catch (e) {
     if (current()) {
@@ -724,8 +735,8 @@ function onAppKeydown(e: KeyboardEvent): void {
 
 function onWindowDrop(e: DragEvent): void {
   e.preventDefault()
-  const f = e.dataTransfer?.files?.[0]
-  if (f) onDropped(f)
+  const files = Array.from(e.dataTransfer?.files ?? [])
+  if (files.length) void onDropped(files)
 }
 function onWindowDragOver(e: DragEvent): void {
   e.preventDefault()
@@ -808,7 +819,7 @@ const busy = computed(
       <img :src="appIcon" class="brand-icon" alt="" /><span class="brand-name">熊猫播放器</span>
       <span class="current-title" :title="video?.sourcePath">{{ video?.sourcePath.split(/[\\/]/).pop() }}</span>
       <div class="toolbar-actions">
-        <button class="quiet-icon" title="打开视频（⌘ / Ctrl + O）" aria-label="打开视频" @click="openDialog"><AppIcon name="folder" /></button>
+        <button class="quiet-icon" title="打开音视频（⌘ / Ctrl + O）" aria-label="打开音视频" @click="openDialog"><AppIcon name="folder" /></button>
         <button v-if="running" class="ai-button" @click="cancel">停止生成</button>
         <button v-else class="ai-button" :disabled="!video || video.needsRemux || translating || !!downloading" @click="startSubtitles"><AppIcon name="captions" />AI 字幕</button>
         <details class="quick-menu">
@@ -842,13 +853,13 @@ const busy = computed(
           </div>
 
           <div class="library-tools">
-            <input v-model="librarySearch" type="search" placeholder="搜索视频…" aria-label="搜索视频" />
+            <input v-model="librarySearch" type="search" placeholder="搜索音视频…" aria-label="搜索音视频" />
           </div>
           <div class="library-add">
             <details class="quick-menu">
-              <summary><AppIcon name="plus" />添加视频</summary>
+              <summary><AppIcon name="plus" />添加音视频</summary>
               <div class="menu-items" @click="($event.target as HTMLElement).closest('button') && ($event.currentTarget as HTMLElement).closest('details')?.removeAttribute('open')">
-                <button @click="addFiles">添加视频文件…</button>
+                <button @click="addFiles">添加音视频文件…</button>
                 <button @click="addFolder">添加文件夹（含子文件夹）…</button>
                 <button v-if="sidebarTab === 'playlist'" :disabled="!library.playlist.length" @click="clearPlaylistList">清空播放列表</button>
                 <button v-else :disabled="!library.history.length" @click="clearHistoryList">清空历史记录</button>
@@ -857,7 +868,7 @@ const busy = computed(
           </div>
           <div v-if="sidebarTab === 'playlist'" class="sidebar-body">
             <div v-if="!library.playlist.length" class="sidebar-empty">播放列表为空</div>
-            <div v-if="librarySearch && !visibleEntries.length" class="sidebar-empty">没有匹配的视频</div>
+            <div v-if="librarySearch && !visibleEntries.length" class="sidebar-empty">没有匹配的媒体文件</div>
             <div v-for="e in visibleEntries" :key="e.path" class="sidebar-item" :class="{ active: isCurrentVideo(e.path) }">
               <div class="sidebar-item-title" :title="e.path" @click="playPath(e.path)">
                 {{ e.title }}
@@ -868,7 +879,7 @@ const busy = computed(
 
           <div v-if="sidebarTab === 'history'" class="sidebar-body">
             <div v-if="!library.history.length" class="sidebar-empty">暂无历史</div>
-            <div v-if="librarySearch && !visibleEntries.length" class="sidebar-empty">没有匹配的视频</div>
+            <div v-if="librarySearch && !visibleEntries.length" class="sidebar-empty">没有匹配的媒体文件</div>
             <div v-for="e in visibleEntries" :key="e.path" class="sidebar-item" :class="{ active: isCurrentVideo(e.path) }">
               <div class="sidebar-item-title" :title="e.path" @click="playPath(e.path)">
                 {{ e.title }}
@@ -876,7 +887,7 @@ const busy = computed(
             </div>
           </div>
 
-          <div class="sidebar-footer">{{ sidebarTab === 'playlist' ? library.playlist.length : library.history.length }} 个视频</div>
+          <div class="sidebar-footer">{{ sidebarTab === 'playlist' ? library.playlist.length : library.history.length }} 个媒体文件</div>
         </aside>
 
         <div class="player-area">
@@ -894,6 +905,7 @@ const busy = computed(
           :initial-time="initialTime"
           :autoplay="shouldAutoplay"
           :minimal="minimalMode"
+          :audio-only="video.audioOnly"
           :has-previous="hasPrevious"
           :has-next="hasNext"
           @time="onPlayerTime"
@@ -908,10 +920,10 @@ const busy = computed(
         />
         <div v-else class="remux-hint">
           <div class="remux-hint-icon">⚠️</div>
-          <p>{{ statusMsg || '此视频需要兼容处理后播放' }}</p>
+          <p>{{ statusMsg || '此文件需要兼容处理后播放' }}</p>
           <p class="dim">
-            自动检测视频与音轨，优先保留原始画质。<br />
-            需要转换的视频会保存在本地缓存中，再次打开可直接播放。
+            自动检测音视频编码并处理兼容性。<br />
+            转换结果会保存在本地缓存中，再次打开可直接播放。
           </p>
           <p v-if="error" class="dim">{{ error }}</p>
           <div class="remux-actions">
@@ -919,7 +931,7 @@ const busy = computed(
               {{ remuxing ? '封装中…' : '无损转 MP4' }}
             </button>
             <button :disabled="probing || remuxing || transcoding" @click="transcode">
-              {{ transcoding ? `转码中… ${transcodePercent}%` : '转码为 H.264' }}
+              {{ transcoding ? `转码中… ${transcodePercent}%` : video.audioOnly ? '转为兼容音频' : '转码为 H.264' }}
             </button>
             <button
               v-if="probing || remuxing || transcoding"

@@ -27,6 +27,8 @@ final class PlayerStore: ObservableObject {
     @Published var current: MediaItem?
     @Published var isPlaying = false
     @Published var isLoading = false
+    @Published private(set) var isAudioOnly = false
+    @Published private(set) var audioSubtitleText = ""
     @Published var position: Double = 0
     @Published var duration: Double = 0
     @Published var volume: Double = 75 { didSet { engine?.set("volume", "\(volume.clamped(to: 0...100))"); defaults.set(volume, forKey: "volume") } }
@@ -124,11 +126,11 @@ final class PlayerStore: ObservableObject {
 
     func openPanel(folder: Bool = false, append: Bool = false) {
         let panel = NSOpenPanel()
-        panel.title = folder ? "添加视频文件夹" : "打开视频"
+        panel.title = folder ? "添加媒体文件夹" : "打开音视频"
         panel.canChooseDirectories = folder; panel.canChooseFiles = !folder
         panel.allowsMultipleSelection = true
         // Do not restrict to UTType.movie: many containers are not registered by macOS.
-        panel.message = folder ? "递归扫描全部子文件夹，将视频加入播放列表，自动去重。" : "支持 MKV、MP4、AVI、MOV、WebM、TS 等视频格式"
+        panel.message = folder ? "递归扫描全部子文件夹，将音视频加入播放列表，自动去重。" : "支持 MKV、MP4、MOV 等视频及 MP3、M4A、WAV、FLAC、OGG 等音频"
         if panel.runModal() == .OK { add(panel.urls, play: !folder && !append) }
     }
     func add(_ urls: [URL], play: Bool = true) {
@@ -146,11 +148,11 @@ final class PlayerStore: ObservableObject {
             guard !result.cancelled else { self.importStatus = "已取消扫描"; return }
             var known = Set(self.playlist.map { $0.url.resolvingSymlinksInPath().path })
             var added = 0
-            for url in result.videos where known.insert(url.path).inserted { self.playlist.append(MediaItem(url: url)); added += 1 }
-            self.scanCount = result.videos.count
-            self.importStatus = "找到 \(result.videos.count) 个视频，新增 \(added) 个" + (result.unreadable.isEmpty ? "" : "，\(result.unreadable.count) 处无法读取")
+            for url in result.media where known.insert(url.path).inserted { self.playlist.append(MediaItem(url: url)); added += 1 }
+            self.scanCount = result.media.count
+            self.importStatus = "找到 \(result.media.count) 个媒体文件，新增 \(added) 个" + (result.unreadable.isEmpty ? "" : "，\(result.unreadable.count) 处无法读取")
             self.save()
-            if play, let first = result.videos.first { self.open(MediaItem(url: first)) }
+            if play, let first = result.media.first { self.open(MediaItem(url: first)) }
             for subtitle in result.subtitles { self.loadSubtitle(subtitle) }
         }
     }
@@ -162,7 +164,7 @@ final class PlayerStore: ObservableObject {
         generatedSubtitleID = nil
         if let old = renderedSubtitlesURL { try? FileManager.default.removeItem(at: old) }; renderedSubtitlesURL = nil
         current = item; position = 0; duration = 0; isLoading = true; isPlaying = false
-        resolution = ""; codec = ""; tracks = []; audioID = 0; subtitleID = 0
+        resolution = ""; codec = ""; tracks = []; audioID = 0; subtitleID = 0; isAudioOnly = false; audioSubtitleText = ""
         pendingResume = progress[item.id]; error = nil
         recent.removeAll { $0.id == item.id }; recent.insert(item, at: 0); recent = Array(recent.prefix(100))
         window?.title = "\(item.title) — 熊猫播放器"
@@ -191,11 +193,14 @@ final class PlayerStore: ObservableObject {
         if !isScrubbing { position = engine.number("time-pos") }
         duration = engine.number("duration")
         isPlaying = engine.string("pause") != "yes" && !isLoading && engine.string("eof-reached") != "yes"
+        // mpv keeps subtitle timing and track selection active without a video output.
+        // Render its selected subtitle text over the audio view instead of a video frame.
+        audioSubtitleText = isAudioOnly && ai.display != .off ? engine.string("sub-text") ?? "" : ""
         tickCount += 1
         if tickCount % 4 == 0 {
             let width = Int(engine.number("video-params/w")), height = Int(engine.number("video-params/h"))
             resolution = width > 0 ? "\(width) × \(height)" : ""
-            codec = engine.string("video-format")?.uppercased() ?? ""
+            codec = (engine.string(isAudioOnly ? "audio-codec-name" : "video-format") ?? "").uppercased()
             hardware = engine.string("hwdec-current") ?? "no"
             fps = engine.number("container-fps"); droppedFrames = engine.number("frame-drop-count")
             readTracks()
@@ -244,11 +249,12 @@ final class PlayerStore: ObservableObject {
     func selectSubtitle(_ id: Int) { engine?.set("sid", id == 0 ? "no" : "\(id)"); subtitleID = id }
     private func readTracks() {
         guard let engine else { return }
-        var result = [MediaTrack]()
+        var result = [MediaTrack](), hasVideo = false
         let count = min(Int(engine.number("track-list/count")), 100)
         for index in 0..<max(0, count) {
             let prefix = "track-list/\(index)/"
             let type = engine.string(prefix + "type") ?? ""
+            if type == "video", engine.string(prefix + "albumart") != "yes", engine.string(prefix + "image") != "yes" { hasVideo = true }
             guard type == "audio" || type == "sub" else { continue }
             let id = Int(engine.number(prefix + "id"))
             let title = engine.string(prefix + "title") ?? ""
@@ -257,15 +263,16 @@ final class PlayerStore: ObservableObject {
             let label = [title.isEmpty ? "\(type == "audio" ? "音轨" : "字幕") \(id)" : title, language, codec].filter { !$0.isEmpty }.joined(separator: " · ")
             result.append(MediaTrack(id: id, type: type, label: label))
         }
+        isAudioOnly = !hasVideo && result.contains { $0.type == "audio" }
         tracks = result; audioID = Int(engine.string("aid") ?? "") ?? 0; subtitleID = Int(engine.string("sid") ?? "") ?? 0
     }
     func subtitlePanel() {
-        guard current != nil else { showNotice("请先打开视频"); return }
+        guard current != nil else { showNotice("请先打开音视频"); return }
         let panel = NSOpenPanel(); panel.title = "加载字幕"; panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url { loadSubtitle(url) }
     }
     func loadSubtitle(_ url: URL) {
-        guard current != nil else { showNotice("请先打开视频再加载字幕"); return }
+        guard current != nil else { showNotice("请先打开音视频再加载字幕"); return }
         if ["srt", "vtt"].contains(url.pathExtension.lowercased()), let current {
             do { ai.importCues(try SubtitleCodec.read(url), video: current.url); showNotice("字幕已导入，可翻译为中文") }
             catch { self.error = error.localizedDescription }
@@ -321,7 +328,7 @@ final class PlayerStore: ObservableObject {
         settingsVisible = true
     }
     func startAI() {
-        guard let current else { showNotice("请先打开视频"); return }
+        guard let current else { showNotice("请先打开音视频"); return }
         var audioIndex: Int?
         if let engine {
             for i in 0..<Int(engine.number("track-list/count")) where Int(engine.number("track-list/\(i)/id")) == audioID && engine.string("track-list/\(i)/type") == "audio" {

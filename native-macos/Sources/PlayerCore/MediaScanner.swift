@@ -9,7 +9,7 @@ public final class CancellationFlag: @unchecked Sendable {
 }
 
 public struct MediaScanResult: Sendable {
-    public var videos: [URL] = []
+    public var media: [URL] = []
     public var subtitles: [URL] = []
     public var unreadable: [String] = []
     public var cancelled = false
@@ -24,11 +24,11 @@ public enum MediaScanner {
             let canonical = url.standardizedFileURL.resolvingSymlinksInPath()
             guard known.insert(canonical.path).inserted else { return }
             guard (try? canonical.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return }
-            if VideoFiles.subtitles.contains(canonical.pathExtension.lowercased()) {
+            if MediaFiles.subtitles.contains(canonical.pathExtension.lowercased()) {
                 if explicit { result.subtitles.append(canonical) }
-            } else if VideoFiles.accepts(canonical) || explicit {
-                result.videos.append(canonical)
-                if result.videos.count % 100 == 0 { progress?(result.videos.count) }
+            } else if MediaFiles.accepts(canonical) || explicit {
+                result.media.append(canonical)
+                if result.media.count % 100 == 0 { progress?(result.media.count) }
             }
         }
         for root in roots where root.isFileURL {
@@ -46,12 +46,12 @@ public enum MediaScanner {
                     enumerator?.skipDescendants()
                     continue
                 }
-                if VideoFiles.accepts(file) { accept(file, explicit: false) }
+                if MediaFiles.accepts(file) { accept(file, explicit: false) }
             }
         }
         result.cancelled = cancellation.isCancelled
-        result.videos.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
-        progress?(result.videos.count)
+        result.media.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+        progress?(result.media.count)
         return result
     }
 }

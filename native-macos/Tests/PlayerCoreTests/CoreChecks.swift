@@ -16,11 +16,11 @@ import PlayerCore
         expect(PlaybackTime.resumePosition(saved: 4, duration: 600) == nil, "ignore trivial progress")
         expect(PlaybackTime.resumePosition(saved: 40, duration: .nan) == nil, "reject invalid duration")
         let urls = ["Episode 10.MKV", "Episode 2.mkv", "Episode 1.mkv"].map { URL(fileURLWithPath: "/tmp/\($0)") }
-        expect(VideoFiles.naturallySorted(urls).map(\.lastPathComponent) == ["Episode 1.mkv", "Episode 2.mkv", "Episode 10.MKV"], "natural episode order")
-        for file in ["video.MKV", "video.mxf", "video.rmvb", "video.m2ts", "video.webm"] {
-            expect(VideoFiles.accepts(URL(fileURLWithPath: file)), "recognize \(file)")
+        expect(MediaFiles.naturallySorted(urls).map(\.lastPathComponent) == ["Episode 1.mkv", "Episode 2.mkv", "Episode 10.MKV"], "natural episode order")
+        for file in ["video.MKV", "video.mxf", "video.rmvb", "video.m2ts", "video.webm", "song.MP3", "song.m4a", "song.wav", "song.flac", "song.opus", "song.aiff", "song.wma"] {
+            expect(MediaFiles.accepts(URL(fileURLWithPath: file)), "recognize \(file)")
         }
-        expect(!VideoFiles.accepts(URL(fileURLWithPath: "image.png")), "exclude non-video files from folder scan")
+        expect(!MediaFiles.accepts(URL(fileURLWithPath: "image.png")), "exclude non-video files from folder scan")
         let properties = Dictionary(uniqueKeysWithValues: PictureSettings(brightness: 300, contrast: -400, saturation: .nan, sharpness: 9).properties)
         expect(properties["brightness"] == "100.000", "clamp brightness")
         expect(properties["contrast"] == "-100.000", "clamp contrast")
@@ -45,9 +45,14 @@ import PlayerCore
             for name in ["Episode 10.MKV", "Episode 2.mp4", "Episode 1.avi", "notes.txt", "sub.srt", ".hidden.mp4"] { try Data("fixture".utf8).write(to: nested.appendingPathComponent(name)) }
             try FileManager.default.createSymbolicLink(at: nested.appendingPathComponent("cycle"), withDestinationURL: root)
             let scanned = MediaScanner.scan([root, root.appendingPathComponent("Series")])
-            expect(scanned.videos.count == 3, "scan four nested folder levels and deduplicate overlapping roots")
-            expect(scanned.videos.map(\.lastPathComponent) == ["Episode 1.avi", "Episode 2.mp4", "Episode 10.MKV"], "recursive natural episode order")
+            expect(scanned.media.count == 3, "scan four nested folder levels and deduplicate overlapping roots")
+            expect(scanned.media.map(\.lastPathComponent) == ["Episode 1.avi", "Episode 2.mp4", "Episode 10.MKV"], "recursive natural episode order")
             expect(scanned.subtitles.isEmpty, "do not add subtitle files to video list")
+            for name in ["Song 2.MP3", "Song 10.flac", "Song 1.wav"] { try Data("fixture".utf8).write(to: nested.appendingPathComponent(name)) }
+            let mixed = MediaScanner.scan([root, nested])
+            expect(mixed.media.count == 6, "mixed recursive scan includes audio and deduplicates roots")
+            expect(mixed.media.suffix(3).map(\.lastPathComponent) == ["Song 1.wav", "Song 2.MP3", "Song 10.flac"], "audio uses natural playlist ordering")
+            expect(MediaItem(url: nested.appendingPathComponent("Song.MP3")).isAudioFile, "audio playlist icon ignores extension case")
             let cancelled = CancellationFlag(); cancelled.cancel()
             expect(MediaScanner.scan([root], cancellation: cancelled).cancelled, "cancel recursive scan")
             let cues = SubtitleCodec.parse("WEBVTT\n\n00:01.2 --> 00:03.45\nHello\nsecond line\n\n00:04.000 --> 00:05.000\nGoodbye\n")

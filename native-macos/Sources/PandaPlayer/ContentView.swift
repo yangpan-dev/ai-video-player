@@ -25,6 +25,7 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     ZStack(alignment: .bottom) {
                         VideoSurface(store: store)
+                        if store.isAudioOnly { audioPlayback.allowsHitTesting(false) }
                         if store.current == nil { welcome }
                         if store.isLoading { ProgressView().controlSize(.large).padding(18).background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 14)) }
                         if let notice = store.notice {
@@ -82,13 +83,13 @@ struct ContentView: View {
                 libraryTab("最近", section: "recent")
                 Spacer(minLength: 0)
                 Menu {
-                    Button("添加视频…") { store.openPanel(append: true) }
+                    Button("添加音视频…") { store.openPanel(append: true) }
                     Button("添加文件夹…") { store.openPanel(folder: true) }
                     Divider()
                     Toggle("按名称排序", isOn: $store.sortByName)
                     Button("清空播放列表") { store.clearList() }.disabled(store.playlist.isEmpty)
                 } label: { Image(systemName: "plus").font(.system(size: 12)).frame(width: 22, height: 24) }
-                .menuStyle(.borderlessButton).fixedSize().help("添加视频或文件夹，含全部子文件夹").disabled(store.isScanning)
+                .menuStyle(.borderlessButton).fixedSize().help("添加音视频或文件夹，含全部子文件夹").disabled(store.isScanning)
             }.padding(.horizontal, 13).padding(.top, 18).padding(.bottom, 14)
             HStack(spacing: 7) {
                 Image(systemName: "magnifyingglass").font(.system(size: 10)).foregroundStyle(Palette.muted)
@@ -97,7 +98,7 @@ struct ContentView: View {
             if store.visibleItems.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "rectangle.stack").font(.system(size: 23, weight: .light))
-                    Text(store.search.isEmpty ? "还没有视频" : "没有匹配的视频").font(.system(size: 11))
+                    Text(store.search.isEmpty ? "还没有媒体文件" : "没有匹配的媒体文件").font(.system(size: 11))
                     if store.search.isEmpty {
                         Button("添加文件夹…") { store.openPanel(folder: true) }.buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(Palette.accent)
                     }
@@ -109,7 +110,7 @@ struct ContentView: View {
                         ForEach(store.visibleItems) { item in
                             Button { store.open(item) } label: {
                                 HStack(spacing: 10) {
-                                    Image(systemName: store.current?.id == item.id ? "waveform" : "play.rectangle")
+                                    Image(systemName: store.current?.id == item.id ? "waveform" : (item.isAudioFile ? "music.note" : "play.rectangle"))
                                         .font(.system(size: 14, weight: .light)).foregroundStyle(store.current?.id == item.id ? Palette.accent : Palette.muted).frame(width: 21)
                                     Text(item.title).font(.system(size: 11, weight: store.current?.id == item.id ? .medium : .regular)).lineLimit(2).multilineTextAlignment(.leading)
                                     Spacer(minLength: 0)
@@ -129,7 +130,7 @@ struct ContentView: View {
                 HStack(spacing: 8) { ProgressView().controlSize(.mini); Text("正在添加 · \(store.scanCount)").font(.system(size: 10)); Spacer() }
                     .foregroundStyle(Palette.muted).padding(14)
             } else {
-                Text("\(store.selectedSection == "recent" ? store.recent.count : store.playlist.count) 个视频")
+                Text("\(store.selectedSection == "recent" ? store.recent.count : store.playlist.count) 个媒体文件")
                     .font(.system(size: 10)).foregroundStyle(Palette.muted.opacity(0.65)).frame(maxWidth: .infinity, alignment: .leading).padding(15)
                     .help(store.importStatus)
             }
@@ -146,9 +147,9 @@ struct ContentView: View {
         VStack(spacing: 0) {
             if let icon = AppAssets.icon { Image(nsImage: icon).resizable().scaledToFit().frame(width: 100, height: 100).padding(.bottom, 22) }
             Text("熊猫播放器").font(.system(size: 24, weight: .medium)).tracking(1)
-            Text("拖入视频或文件夹即可开始").font(.system(size: 12)).foregroundStyle(Palette.muted).padding(.top, 12)
+            Text("拖入音频、视频或文件夹即可开始").font(.system(size: 12)).foregroundStyle(Palette.muted).padding(.top, 12)
             Button { store.openPanel() } label: {
-                Label("打开视频", systemImage: "folder").font(.system(size: 12, weight: .medium)).padding(.horizontal, 22).padding(.vertical, 11)
+                Label("打开音视频", systemImage: "folder").font(.system(size: 12, weight: .medium)).padding(.horizontal, 22).padding(.vertical, 11)
                     .foregroundStyle(.white).background(Palette.accent, in: Capsule())
             }.buttonStyle(.plain).padding(.top, 26)
         }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Palette.background)
@@ -167,12 +168,12 @@ struct ContentView: View {
                 Button { store.muted.toggle() } label: { Image(systemName: store.muted ? "speaker.slash" : "speaker.wave.2").frame(width: 18) }.buttonStyle(.plain).foregroundStyle(Palette.muted).help("静音")
                 Slider(value: $store.volume, in: 0...100).controlSize(.mini).frame(width: 64).help("音量")
                 Spacer(minLength: 8)
-                iconButton("backward.end.fill", help: "上一个视频") { store.adjacent(-1) }
+                iconButton("backward.end.fill", help: "上一个媒体文件") { store.adjacent(-1) }
                 Button { store.togglePlay() } label: {
                     Image(systemName: store.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 16)).offset(x: store.isPlaying ? 0 : 1)
                         .foregroundStyle(.white).frame(width: 40, height: 40).background(Color.white.opacity(0.09), in: Circle())
                 }.buttonStyle(.plain).help("播放或暂停（空格）")
-                iconButton("forward.end.fill", help: "下一个视频") { store.adjacent(1) }
+                iconButton("forward.end.fill", help: "下一个媒体文件") { store.adjacent(1) }
                 Spacer(minLength: 8)
                 Menu {
                     ForEach([0.5, 0.75, 1, 1.25, 1.5, 2.0], id: \.self) { speed in Button("\(speed.formatted())×") { store.speed = speed } }
@@ -190,6 +191,27 @@ struct ContentView: View {
                 iconButton("arrow.up.left.and.arrow.down.right", help: "全屏（F）") { store.toggleFullscreen() }
             }
         }.padding(.horizontal, 22).padding(.top, 13).padding(.bottom, 16).background(Palette.panel.opacity(0.4))
+    }
+    private var audioPlayback: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            Image(systemName: "music.note").font(.system(size: 64, weight: .light))
+                .foregroundStyle(Palette.accent).frame(width: 144, height: 144)
+                .background(Palette.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 30))
+            Text(store.current?.title ?? "音频").font(.system(size: 20, weight: .medium))
+                .lineLimit(2).multilineTextAlignment(.center)
+            Text("音频播放").font(.system(size: 12)).foregroundStyle(Palette.muted)
+            Spacer()
+        }.padding(.horizontal, 40).padding(.bottom, 80)
+            .frame(maxWidth: .infinity, maxHeight: .infinity).background(Palette.background)
+            .overlay(alignment: .bottom) {
+                if !store.audioSubtitleText.isEmpty {
+                    Text(store.audioSubtitleText).font(.system(size: max(14, store.subtitleSize / 1.5), weight: .semibold))
+                        .multilineTextAlignment(.center).padding(.horizontal, 24)
+                        .padding(.bottom, store.fullscreenLayout || store.minimalMode ? 120 : 30)
+                        .accessibilityIdentifier("audio-subtitle")
+                }
+            }.accessibilityIdentifier("audio-playback")
     }
     private func drop(_ providers: [NSItemProvider]) -> Bool {
         let group = DispatchGroup(), lock = NSLock()

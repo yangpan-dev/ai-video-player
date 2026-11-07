@@ -1,7 +1,9 @@
 import Foundation
 
-public enum VideoFiles {
-    public static let extensions: Set<String> = ["mp4", "mkv", "mov", "avi", "webm", "m4v", "ts", "mts", "m2ts", "mpg", "mpeg", "vob", "wmv", "flv", "ogv", "3gp", "rm", "rmvb", "mxf", "divx", "asf", "f4v"]
+public enum MediaFiles {
+    public static let videoExtensions: Set<String> = ["mp4", "mkv", "mov", "avi", "webm", "m4v", "ts", "mts", "m2ts", "mpg", "mpeg", "vob", "wmv", "flv", "ogv", "3gp", "rm", "rmvb", "mxf", "divx", "asf", "f4v"]
+    public static let audioExtensions: Set<String> = ["mp3", "m4a", "m4b", "aac", "wav", "wave", "flac", "ogg", "oga", "opus", "aif", "aiff", "aifc", "wma", "ape", "ac3", "eac3", "dts", "mka", "amr", "wv"]
+    public static let extensions = videoExtensions.union(audioExtensions)
     public static let subtitles: Set<String> = ["srt", "ass", "ssa", "vtt", "sub", "sup"]
     public static func accepts(_ url: URL) -> Bool { extensions.contains(url.pathExtension.lowercased()) }
     public static func naturallySorted(_ urls: [URL]) -> [URL] {
@@ -13,6 +15,7 @@ public struct MediaItem: Identifiable, Codable, Equatable {
     public var id: String { url.path }
     public let url: URL
     public var title: String { url.deletingPathExtension().lastPathComponent }
+    public var isAudioFile: Bool { MediaFiles.audioExtensions.contains(url.pathExtension.lowercased()) }
     public init(url: URL) { self.url = url.standardizedFileURL }
 }
 

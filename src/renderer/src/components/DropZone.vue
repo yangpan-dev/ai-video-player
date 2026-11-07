@@ -8,9 +8,9 @@ defineEmits<{ (e: 'browse'): void }>()
     <div class="dropzone-inner">
       <img :src="appIcon" class="dropzone-icon" alt="熊猫播放器图标" />
       <h1>熊猫播放器</h1>
-      <p class="hint">拖入视频或文件夹即可开始</p>
+      <p class="hint">拖入音频、视频或文件夹即可开始</p>
       <p class="sub">本地播放 · AI 双语字幕</p>
-      <button class="primary" @click="$emit('browse')">打开视频</button>
+      <button class="primary" @click="$emit('browse')">打开音视频</button>
     </div>
   </div>
 </template>

@@ -68,8 +68,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let checkSubtitles = !CommandLine.arguments.contains("--subtitle-test") || subtitles.contains("熊猫")
                 let checkFolders = !CommandLine.arguments.contains("--folder-test") || self.store.playlist.count >= 3
                 let checkSettings = !testSettings || (self.store.settingsVisible && self.store.settingsSection == .playback && self.window.attachedSheet != nil)
-                let passed = self.store.renderedFrameCount > 0 && self.store.duration > 0 && self.store.error == nil && checkSubtitles && checkFolders && checkSettings && self.store.renderStatistics.snapshot.verifiedPixels
-                let report: [String: Any] = ["window": passed ? "passed" : "failed", "renderedFrames": self.store.renderedFrameCount, "duration": self.store.duration, "error": self.store.error ?? "", "playlist": self.store.playlist.count, "subtitles": subtitles, "sid": self.store.engine?.string("sid") ?? "", "subVisible": self.store.engine?.string("sub-visibility") ?? "", "position": self.store.position, "verifiedVideoPixels": self.store.renderStatistics.snapshot.verifiedPixels, "mainThreadRenderedFrames": self.store.renderStatistics.snapshot.mainThreadFrames, "settingsSheet": self.window.attachedSheet != nil, "settingsSection": self.store.settingsSection.rawValue, "tracks": self.store.tracks.map { "\($0.id):\($0.label)" }]
+                let audioTest = CommandLine.arguments.contains("--audio-test")
+                let checkOutput = audioTest ? self.store.isAudioOnly && self.store.position > 0 && !self.store.audioTracks.isEmpty : self.store.renderedFrameCount > 0 && self.store.renderStatistics.snapshot.verifiedPixels
+                let checkCaptions = audioTest ? !CommandLine.arguments.contains("--subtitle-test") || self.store.audioSubtitleText.contains("熊猫") : checkSubtitles
+                let passed = checkOutput && self.store.duration > 0 && self.store.error == nil && checkCaptions && checkFolders && checkSettings
+                let report: [String: Any] = ["window": passed ? "passed" : "failed", "audioOnly": self.store.isAudioOnly, "renderedFrames": self.store.renderedFrameCount, "duration": self.store.duration, "error": self.store.error ?? "", "playlist": self.store.playlist.count, "subtitles": subtitles, "sid": self.store.engine?.string("sid") ?? "", "subVisible": self.store.engine?.string("sub-visibility") ?? "", "position": self.store.position, "verifiedVideoPixels": self.store.renderStatistics.snapshot.verifiedPixels, "mainThreadRenderedFrames": self.store.renderStatistics.snapshot.mainThreadFrames, "settingsSheet": self.window.attachedSheet != nil, "settingsSection": self.store.settingsSection.rawValue, "tracks": self.store.tracks.map { "\($0.id):\($0.label)" }]
                 if let data = try? JSONSerialization.data(withJSONObject: report, options: [.sortedKeys]) { print(String(decoding: data, as: UTF8.self)) }
                 self.store.shutdown()
                 exit(passed ? 0 : 1)
@@ -114,7 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         item(app, "隐藏熊猫播放器", #selector(hideApp), "h"); app.addItem(.separator())
         item(app, "退出熊猫播放器", #selector(quit), "q")
         let file = menu("文件")
-        item(file, "打开视频…", #selector(openVideo), "o")
+        item(file, "打开音视频…", #selector(openVideo), "o")
         item(file, "添加文件夹…", #selector(openFolder), "o", [.command, .shift])
         item(file, "加载字幕…", #selector(openSubtitles), "l")
         item(file, "保存截图…", #selector(capture), "s", [.command, .shift])
@@ -126,8 +129,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         item(playback, "播放 / 暂停", #selector(playPause), " ", [])
         item(playback, "后退 5 秒", #selector(backward), String(UnicodeScalar(NSLeftArrowFunctionKey)!), [])
         item(playback, "前进 5 秒", #selector(forward), String(UnicodeScalar(NSRightArrowFunctionKey)!), [])
-        item(playback, "上一个视频", #selector(previous), "[", .command)
-        item(playback, "下一个视频", #selector(next), "]", .command)
+        item(playback, "上一个媒体文件", #selector(previous), "[", .command)
+        item(playback, "下一个媒体文件", #selector(next), "]", .command)
         let view = menu("显示")
         item(view, "进入 / 退出全屏", #selector(fullscreen), "f", [.command, .control])
         item(view, "显示 / 隐藏播放列表", #selector(sidebar), "1")
@@ -152,6 +155,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func hideApp() { NSApplication.shared.hide(nil) }
     @objc private func quit() { NSApplication.shared.terminate(nil) }
     @objc private func about() {
-        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationName: "熊猫播放器", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.3", .credits: NSAttributedString(string: "原生 macOS AI 视频播放器\nSwiftUI · AppKit · libmpv\nWhisper 语音识别 · Qwen 本地翻译\n高质量缩放 · 多格式播放 · 递归视频列表")])
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationName: "熊猫播放器", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.4", .credits: NSAttributedString(string: "原生 macOS AI 视频播放器\nSwiftUI · AppKit · libmpv\nWhisper 语音识别 · Qwen 本地翻译\n高质量缩放 · 多格式播放 · 递归视频列表")])
     }
 }

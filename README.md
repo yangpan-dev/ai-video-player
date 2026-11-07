@@ -16,13 +16,13 @@ macOS 原生播放器现已建立独立工程：[熊猫播放器原生版（Swif
 
 ## 📦 下载安装（已打包程序，无需编译）
 
-AI 字幕稳定性和播放控制栏更新：[GitHub Releases v0.3.3](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.3.3)，更新说明见 [v0.3.3](releases/v0.3.3.md)。本次提供原生 macOS 和 Vue / Electron macOS 两种安装包；Windows 稳定版仍可下载 v0.3.1。
+音频播放更新：[GitHub Releases v0.3.4](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.3.4)，更新说明见 [v0.3.4](releases/v0.3.4.md)。提供原生 macOS、Vue / Electron macOS 和 Windows x64 安装包。
 
 | 版本 | 安装包 |
 | --- | --- |
-| macOS 原生版（Apple Silicon，macOS 26+） | [DMG](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.3/PandaPlayer-0.3.3-arm64-mac.dmg) · [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.3/PandaPlayer-0.3.3-arm64-mac.zip) |
-| macOS Vue / Electron 版（Apple Silicon，完整 AI 引擎需 macOS 26+） | [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.3/PandaPlayer-Electron-0.3.3-arm64-mac.zip) |
-| Windows Vue / Electron 版（x64） | [安装程序](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.1/PandaPlayer.Setup.0.3.1.exe) |
+| macOS 原生版（Apple Silicon，macOS 26+） | [DMG](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.4/PandaPlayer-0.3.4-arm64-mac.dmg) · [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.4/PandaPlayer-0.3.4-arm64-mac.zip) |
+| macOS Vue / Electron 版（Apple Silicon，完整 AI 引擎需 macOS 26+） | [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.4/PandaPlayer-Electron-0.3.4-arm64-mac.zip) |
+| Windows Vue / Electron 版（x64） | [安装程序](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.4/PandaPlayer.Setup.0.3.4.exe) |
 
 两版均显示「熊猫播放器」，分别使用独立设计的图标：原生版为蓝紫立体熊猫，Vue 版为青绿几何熊猫；两者均含 AI 神经节点、视频屏幕及播放三角。主界面保留视频、列表、播放控制和 AI 字幕入口；亮度、精简播放和全屏位于同一排控制栏。模型管理、识别模式、字幕字号 / 位置 / 时间偏移、自动下一集和缓存清理统一放到设置（`⌘ / Ctrl + ,`）。旧版模型、列表和观看进度保留原路径，升级无需重新下载模型。
 
@@ -167,6 +167,10 @@ pnpm dev
 - 切换视频自动取消旧字幕任务，取消后的结果不会写入新视频；识别临时音频在任务结束后清理。
 
 ## 视频格式兼容
+
+两版均支持打开、拖入和递归导入音频：MP3、M4A/M4B、AAC、WAV、FLAC、OGG、Opus、AIFF、WMA 等。纯音频显示音乐界面与文件名，可使用播放 / 暂停、跳转、音量、倍速、播放进度恢复和连续播放，也可对语音音频生成 AI 双语字幕。带封面的音频按音频处理。
+
+Vue / Electron 版对常见 MP3、AAC/M4A、PCM WAV、FLAC、Vorbis/Opus 音频优先直接播放；其他编码自动重封装或转换为 AAC，不生成视频画面。原生 macOS 版由 libmpv 直接解码。
 
 所有入口（拖入、文件选择、播放列表）都会检测实际流信息，不再仅凭 `.mp4` 后缀判断兼容性。
 

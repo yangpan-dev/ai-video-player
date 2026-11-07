@@ -108,7 +108,9 @@ export function conversionArgs(
   if (probe.videoStream != null) args.push('-map', `0:${probe.videoStream}`)
   if (probe.audioStream != null) args.push('-map', `0:${probe.audioStream}`)
   args.push('-sn', '-dn')
-  if (mode === 'transcode') {
+  if (probe.videoStream == null) {
+    args.push('-vn')
+  } else if (mode === 'transcode') {
     args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
       '-vf', 'scale=ceil(iw/2)*2:ceil(ih/2)*2', '-pix_fmt', 'yuv420p')
   } else {
@@ -156,7 +158,7 @@ export function convertMedia(
       cleanup()
       if (signal.aborted) reject(new Error('已取消'))
       else if (code === 0) resolve()
-      else reject(new Error(`视频转换失败（退出码 ${code}）：${tail.trim().slice(-1500)}`))
+      else reject(new Error(`媒体转换失败（退出码 ${code}）：${tail.trim().slice(-1500)}`))
     })
   })
 }

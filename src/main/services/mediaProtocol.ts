@@ -3,7 +3,11 @@ import { Readable } from 'node:stream'
 
 const MIME: Record<string, string> = {
   mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
-  ogv: 'video/ogg', ogg: 'video/ogg', avi: 'video/x-msvideo', mkv: 'video/x-matroska', m4a: 'audio/mp4'
+  ogv: 'video/ogg', avi: 'video/x-msvideo', mkv: 'video/x-matroska',
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', m4b: 'audio/mp4', aac: 'audio/aac',
+  wav: 'audio/wav', wave: 'audio/wav', flac: 'audio/flac',
+  ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg',
+  aif: 'audio/aiff', aiff: 'audio/aiff', aifc: 'audio/aiff', wma: 'audio/x-ms-wma'
 }
 
 /** 流式读取 Range，避免 bytes=0- 把整部电影一次性分配到内存。 */

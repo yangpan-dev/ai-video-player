@@ -35,6 +35,7 @@ const api: Api = {
   addToHistory: (path, title) => ipcRenderer.invoke('library:add-history', path, title),
   clearHistory: () => ipcRenderer.invoke('library:clear-history'),
   addVideoFiles: () => ipcRenderer.invoke('library:add-files'),
+  addMediaPaths: (paths) => ipcRenderer.invoke('library:add-paths', paths),
   addFolderToPlaylist: () => ipcRenderer.invoke('library:add-folder'),
   saveProgress: (path, seconds) => ipcRenderer.invoke('library:save-progress', path, seconds),
   getProgress: (path) => ipcRenderer.invoke('library:get-progress', path),

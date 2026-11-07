@@ -1,8 +1,8 @@
 const { test, after } = require('node:test')
 const assert = require('node:assert/strict')
-const { mkdtempSync, writeFileSync, copyFileSync, readdirSync, existsSync, rmSync, utimesSync, openSync, ftruncateSync, closeSync } = require('node:fs')
+const { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, readdirSync, existsSync, rmSync, utimesSync, openSync, ftruncateSync, closeSync } = require('node:fs')
 const { tmpdir } = require('node:os')
-const { join, resolve } = require('node:path')
+const { basename, join, resolve } = require('node:path')
 const { spawnSync } = require('node:child_process')
 const { createServer } = require('node:http')
 const { once } = require('node:events')
@@ -10,7 +10,8 @@ const dir = mkdtempSync(join(tmpdir(), 'video-compat-test-'))
 const load = require('./load-ts.cjs')({ app: { isPackaged: false, getAppPath: () => resolve('.'), getPath: () => dir } })
 const { probeVideo } = load('src/main/services/ffmpeg.ts')
 const { parseMediaProbe } = load('src/main/services/mediaProbe.ts')
-const { playbackMode } = load('src/shared/media.ts')
+const { playbackMode, AUDIO_EXTENSIONS, MEDIA_EXTENSIONS } = load('src/shared/media.ts')
+const { scanMediaFiles, addFolderToPlaylist, addPathsToPlaylist } = load('src/main/services/library.ts')
 const { mediaHandler } = load('src/main/services/mediaProtocol.ts')
 const cache = load('src/main/services/playbackCache.ts')
 const ffmpeg = require('ffmpeg-static')
@@ -107,13 +108,68 @@ test('odd dimensions and video without audio produce 8-bit even-dimension H.264'
   outputs.push({ name: 'odd-no-audio', source, path: result.outputPath })
 })
 
-test('audio-only input remains audio-only', async () => {
-  const source = join(dir, 'audio.m4a')
-  run(['-f', 'lavfi', '-i', 'sine=frequency=440', '-t', '1.2', '-c:a', 'alac', source])
+const audioCases = [
+  ['music.mp3', 'libmp3lame', 'direct', 'audio/mpeg'],
+  ['music.m4a', 'aac', 'direct', 'audio/mp4'],
+  ['book.m4b', 'aac', 'direct', 'audio/mp4'],
+  ['music.wav', 'pcm_s16le', 'direct', 'audio/wav'],
+  ['music.flac', 'flac', 'direct', 'audio/flac'],
+  ['music.ogg', 'libvorbis', 'direct', 'audio/ogg'],
+  ['music.opus', 'libopus', 'direct', 'audio/ogg'],
+  ['lossless.m4a', 'alac', 'audio'],
+  ['music.aac', 'aac', 'remux'],
+  ['music.aiff', 'pcm_s16be', 'audio'],
+  ['music.wma', 'wmav2', 'audio'],
+  ['music.ac3', 'ac3', 'audio']
+]
+for (const [name, codec, expected, mime] of audioCases) {
+  test(`real audio playback preparation: ${name} → ${expected}`, async () => {
+    const source = join(dir, name)
+    run(['-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '2', '-c:a', codec, source])
+    const probe = await probeVideo(source)
+    assert.equal(probe.videoCodec, '')
+    assert.equal(probe.videoStream, undefined)
+    assert.equal(playbackMode(source, probe), expected)
+    let output = source
+    if (expected !== 'direct') output = (await cache.prepareConversion(source, expected)).outputPath
+    const prepared = await probeVideo(output)
+    assert.equal(prepared.videoCodec, '')
+    assert.ok(prepared.audioCodec)
+    assert.ok(prepared.duration > 1)
+    const response = await mediaHandler(new Request('media://f/' + encodeURIComponent(output), { method: 'HEAD' }))
+    assert.equal(response.headers.get('content-type'), mime ?? 'video/mp4')
+    run(['-i', output, '-f', 'null', '-'])
+    outputs.push({ name, source, path: output, mode: expected, audioOnly: true })
+  })
+}
+
+test('audio with cover art skips the image, including forced decoder fallback', async () => {
+  const cover = join(dir, 'cover.jpg')
+  run(['-f', 'lavfi', '-i', 'color=c=blue:s=100x100', '-frames:v', '1', cover])
+  const source = join(dir, 'covered.mp3')
+  run(['-i', join(dir, 'music.mp3'), '-i', cover, '-map', '0:a', '-map', '1:v', '-c', 'copy', '-disposition:v:0', 'attached_pic', source])
   const probe = await probeVideo(source)
-  assert.equal(playbackMode(source, probe), 'audio')
-  const result = await cache.prepareConversion(source, 'audio')
-  assert.equal((await probeVideo(result.outputPath)).audioCodec, 'aac')
+  assert.equal(probe.videoCodec, '')
+  assert.equal(playbackMode(source, probe), 'direct')
+  const fallback = await cache.prepareConversion(source, 'transcode')
+  const prepared = await probeVideo(fallback.outputPath)
+  assert.equal(prepared.videoCodec, '')
+  assert.equal(prepared.audioCodec, 'aac')
+  outputs.push({ name: 'covered.mp3', source, path: source, mode: 'direct', audioOnly: true })
+})
+
+test('mixed folders include audio and video while excluding subtitles and conversion caches', () => {
+  const root = join(dir, 'mixed'), nested = join(root, 'nested')
+  mkdirSync(nested, { recursive: true })
+  for (const name of ['song.MP3', 'song.flac', 'clip.mp4', 'captions.srt', 'notes.txt', 'clip.aivplayer.mp4']) writeFileSync(join(nested, name), 'fixture')
+  assert.deepEqual(scanMediaFiles(root).map(path => basename(path)).sort(), ['clip.mp4', 'song.MP3', 'song.flac'])
+  assert.equal(addFolderToPlaylist(root).added, 3)
+  assert.equal(addFolderToPlaylist(root).added, 0)
+  const dropped = addPathsToPlaylist([join(nested, 'song.MP3'), root, join(nested, 'captions.srt'), join(dir, 'missing')])
+  assert.equal(dropped.added, 0)
+  assert.equal(dropped.files.length, 3)
+  assert.equal(dropped.files[0], join(nested, 'song.MP3'))
+  assert.ok(AUDIO_EXTENSIONS.every(ext => MEDIA_EXTENSIONS.includes(ext)))
 })
 
 test('remux cache cannot masquerade as transcoded output; fingerprint invalidates changed sources', async () => {

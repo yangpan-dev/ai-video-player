@@ -1,6 +1,6 @@
-import { VIDEO_EXTENSIONS } from '../../shared/media'
+import { MEDIA_EXTENSIONS } from '../../shared/media'
 import { app } from 'electron'
-import { existsSync, readFileSync, readdirSync, writeFileSync, type Dirent } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, type Dirent } from 'node:fs'
 import { basename, extname, join } from 'node:path'
 
 export interface LibraryEntry {
@@ -99,8 +99,8 @@ export function getProgress(path: string): number {
   return lib.progress[path] ?? 0
 }
 
-/** 递归扫描文件夹（含子文件夹）里的视频文件 */
-export function scanVideoFiles(dir: string): string[] {
+/** 递归扫描文件夹（含子文件夹）里的音视频文件 */
+export function scanMediaFiles(dir: string): string[] {
   const results: string[] = []
   const walk = (d: string): void => {
     let entries: Dirent[]
@@ -117,7 +117,7 @@ export function scanVideoFiles(dir: string): string[] {
         const name = e.name.toLowerCase()
         // 排除本应用的转换缓存（历史版本会生成 <原名>.aivplayer.mp4），避免污染播放列表
         if (name.endsWith('.aivplayer.mp4')) continue
-        if (VIDEO_EXTENSIONS.includes(extname(name).slice(1))) results.push(full)
+        if (MEDIA_EXTENSIONS.includes(extname(name).slice(1))) results.push(full)
       }
     }
   }
@@ -125,7 +125,7 @@ export function scanVideoFiles(dir: string): string[] {
   return results
 }
 
-/** 把选中的视频文件批量加入播放列表，返回新增数量 */
+/** 把选中的音视频文件批量加入播放列表，返回新增数量 */
 export function addFilesToPlaylist(files: string[]): { library: Library; added: number } {
   const lib = load()
   let added = 0
@@ -139,9 +139,21 @@ export function addFilesToPlaylist(files: string[]): { library: Library; added: 
   return { library: lib, added }
 }
 
-/** 把文件夹（含子文件夹）里的视频批量加入播放列表，返回新增数量 */
+/** 拖入文件或文件夹时共用扫描入口，保留用户选择顺序并去重。 */
+export function addPathsToPlaylist(paths: string[]): { library: Library; added: number; files: string[] } {
+  const files = [...new Set(paths.flatMap(path => {
+    try {
+      const stat = statSync(path)
+      if (stat.isDirectory()) return scanMediaFiles(path)
+      return stat.isFile() && !['srt', 'vtt', 'ass', 'ssa', 'sub', 'sup'].includes(extname(path).slice(1).toLowerCase()) ? [path] : []
+    } catch { return [] }
+  }))]
+  return { ...addFilesToPlaylist(files), files }
+}
+
+/** 把文件夹（含子文件夹）里的音视频批量加入播放列表，返回新增数量 */
 export function addFolderToPlaylist(dir: string): { library: Library; added: number } {
-  const files = scanVideoFiles(dir)
+  const files = scanMediaFiles(dir)
   const lib = load()
   let added = 0
   for (const f of files) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ name: 'sidebar' | 'folder' | 'settings' | 'plus' | 'captions' | 'close' | 'brightness' | 'minimal' }>()
+defineProps<{ name: 'sidebar' | 'folder' | 'settings' | 'plus' | 'captions' | 'close' | 'brightness' | 'minimal' | 'music' }>()
 const paths = {
   sidebar: 'M8 3v18M3 3h18v18H3z',
   folder: 'M3 7V5h6l2 2h10v12H3z',
@@ -8,7 +8,8 @@ const paths = {
   captions: 'M3 5h18v14H3z M10 9H7v6h3 M17 9h-3v6h3',
   close: 'm6 6 12 12M6 18 18 6',
   brightness: 'M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5',
-  minimal: 'M3 5h18v14H3z M7 9h10v6H7z'
+  minimal: 'M3 5h18v14H3z M7 9h10v6H7z',
+  music: 'M9 18V5l12-2v13M9 9l12-2 M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0 M21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0'
 }
 </script>
 

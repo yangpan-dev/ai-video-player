@@ -5,6 +5,7 @@
 ## 当前功能
 
 - 多格式播放：MKV、MP4、AVI、MOV、WebM、TS/M2TS、WMV、FLV、MPEG、VOB、RMVB、MXF 等入口。实际编码支持由加载的 libmpv / FFmpeg 决定；不保证所有损坏、加密或特殊编码文件都能播放。
+- 音频播放：MP3、M4A/M4B、AAC、WAV、FLAC、OGG、Opus、AIFF、WMA、APE 等；支持打开、拖入、访达打开和递归导入。纯音频显示音乐界面，可调节音量、倍速、进度和生成 AI 双语字幕；嵌入封面不会被当成视频。
 - 播放列表、文件夹递归导入、自然排序、搜索、最近播放、观看进度恢复、自动下一集、单片循环。
 - 播放 / 暂停、精确拖动、倍速、音量、静音、全屏、窗口置顶、画面比例和 PNG 截图。
 - 多音轨、内嵌字幕、外部 SRT/ASS/SSA/VTT/PGS 字幕、字幕大小和时间偏移。
@@ -66,7 +67,7 @@ open build/熊猫播放器.app
 ./scripts/package-mac.sh
 ```
 
-产物位于 `dist/PandaPlayer-0.3.3-arm64-mac.dmg` 和同名 ZIP。默认优先查找 Homebrew 的 libmpv，本机没有时使用已安装 IINA 的播放运行库。安装后不再依赖 IINA、旧版播放器或 Homebrew。仅复制所需动态库，保留来源与依赖致谢，并检查包内链接和签名。当前完整包面向 Apple Silicon，最低 macOS 26；未作 Apple 公证。
+产物位于 `dist/PandaPlayer-0.3.4-arm64-mac.dmg` 和同名 ZIP。默认优先查找 Homebrew 的 libmpv，本机没有时使用已安装 IINA 的播放运行库。安装后不再依赖 IINA、旧版播放器或 Homebrew。仅复制所需动态库，保留来源与依赖致谢，并检查包内链接和签名。当前完整包面向 Apple Silicon，最低 macOS 26；未作 Apple 公证。
 
 准备自己可再分发的 libmpv 构建，然后：
 
