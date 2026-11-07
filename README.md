@@ -48,7 +48,7 @@ macOS 原生播放器现已建立独立工程：[熊猫播放器原生版（Swif
 
 ### Windows（x64）
 
-1. 下载 `PandaPlayer.Setup.0.3.1.exe`。
+1. 下载 `PandaPlayer.Setup.0.3.4.exe`。
 2. 双击运行安装程序，按提示完成安装。
 3. 若 Windows SmartScreen 拦截（当前为未签名安装包），点「更多信息 → 仍要运行」。
 4. 首次使用请在应用内下载模型（同 macOS）。
