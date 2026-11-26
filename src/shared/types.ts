@@ -39,6 +39,23 @@ export interface RunPipelineOptions {
   model: string
   /** 'auto' | 'ja' | 'en' */
   language: string
+  /** 从上次的断点继续识别（没有断点时自动从头开始） */
+  resume?: boolean
+}
+
+/** 未完成的识别进度（断点）摘要，用于界面上显示「继续识别」 */
+export interface TranscribeCheckpointInfo {
+  /** 已识别比例 0-100 */
+  percent: number
+  /** 已有的字幕条数 */
+  segmentCount: number
+  /** 已识别到的音频位置（秒） */
+  processedSec: number
+  /** 音频总时长（秒，0 表示未知） */
+  durationSec: number
+  updatedAt: number
+  /** 上次使用的模型名（仅提示用） */
+  model: string
 }
 
 export interface AiEvent<T> {

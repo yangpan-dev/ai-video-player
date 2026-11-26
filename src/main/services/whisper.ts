@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import os from 'node:os'
 import type { SubtitleSegment } from '@shared/types'
 import { resolveWhisperBinary } from './paths'
+import { explainExitCode } from './exitCode'
 
 export interface TranscribeOutput {
   segments: SubtitleSegment[]
@@ -34,9 +35,20 @@ function parseTimestampToMs(ts: string): number {
 export function transcribe(
   wavPath: string,
   modelPath: string,
-  options: { language?: string; onProgress?: (percent: number) => void; signal?: AbortSignal } = {}
+  options: {
+    language?: string
+    onProgress?: (percent: number) => void
+    signal?: AbortSignal
+    /**
+     * 该音频文件在原视频中的起始时间（秒）。分片识别时传入分片起点，
+     * 解析出的时间戳会加上这个偏移，变成整段视频的绝对时间。
+     * 注意：这里只做数值偏移，不向 whisper 传 -ot（-ot 的输出本身已是绝对时间，会重复计算）。
+     */
+    timeOffsetSec?: number
+  } = {}
 ): Promise<TranscribeOutput> {
   const { language = 'auto', onProgress } = options
+  const timeOffsetSec = Math.max(0, options.timeOffsetSec ?? 0)
   return new Promise((resolve, reject) => {
     const bin = resolveWhisperBinary()
     const outPrefix = join(
@@ -80,7 +92,7 @@ export function transcribe(
       try {
         if (options.signal?.aborted) throw new Error('已取消')
         if (code !== 0) {
-          reject(new Error(`whisper 识别失败（退出码 ${code}）\n${stderrTail.slice(-800)}`))
+          reject(new Error(`whisper 识别失败（${explainExitCode(code)}）\n${stderrTail.slice(-800)}`))
           return
         }
         const raw = readFileSync(jsonPath, 'utf8')
@@ -94,10 +106,11 @@ export function transcribe(
               seg.offsets?.from ?? (seg.timestamps?.from ? parseTimestampToMs(seg.timestamps.from) : 0)
             const toMs =
               seg.offsets?.to ?? (seg.timestamps?.to ? parseTimestampToMs(seg.timestamps.to) : 0)
+            // 分片识别时，文件本身是从 timeOffsetSec 处切出来的，时间戳需加回偏移
             return {
               index: i,
-              start: fromMs / 1000,
-              end: toMs / 1000,
+              start: fromMs / 1000 + timeOffsetSec,
+              end: toMs / 1000 + timeOffsetSec,
               text: (seg.text ?? '').trim()
             }
           })

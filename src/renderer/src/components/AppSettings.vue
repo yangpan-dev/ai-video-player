@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { CLOSE_ACTION_OPTIONS, type CloseAction } from '@shared/appSettings'
 import { playerPreferences as prefs } from '../lib/preferences'
 import AppIcon from './AppIcon.vue'
 
@@ -12,14 +13,45 @@ const emit = defineEmits<{
 }>()
 const dialog = ref<HTMLDialogElement | null>(null)
 const tab = ref('ai')
-onMounted(() => dialog.value?.showModal())
+const closeAction = ref<CloseAction>('ask')
+const savedHint = ref(false)
+const closeActionHint = computed(
+  () => CLOSE_ACTION_OPTIONS.find((item) => item.value === closeAction.value)?.hint ?? ''
+)
+let savedTimer: number | undefined
+
+async function loadSettings(): Promise<void> {
+  try {
+    closeAction.value = (await window.api.getAppSettings()).closeAction
+  } catch {
+    /* 读取失败时保留默认值 */
+  }
+}
+
+async function changeCloseAction(event: Event): Promise<void> {
+  const action = (event.target as HTMLSelectElement).value as CloseAction
+  closeAction.value = action
+  try {
+    await window.api.setCloseAction(action)
+    savedHint.value = true
+    window.clearTimeout(savedTimer)
+    savedTimer = window.setTimeout(() => { savedHint.value = false }, 1800)
+  } catch {
+    /* 保存失败时界面上仍保留选择，主进程按旧值执行 */
+  }
+}
+
+onMounted(() => {
+  dialog.value?.showModal()
+  void loadSettings()
+})
 </script>
 
 <template>
   <dialog ref="dialog" class="app-settings" aria-labelledby="settings-title" @cancel="emit('close')" @close="emit('close')" @click="($event.target === dialog) && emit('close')">
     <header><h2 id="settings-title">设置</h2><button autofocus class="quiet-icon" title="关闭设置（Esc）" aria-label="关闭设置" @click="emit('close')"><AppIcon name="close" /></button></header>
     <nav aria-label="设置分类">
-      <button v-for="item in [{ id: 'ai', title: '字幕与 AI' }, { id: 'picture', title: '画面与声音' }, { id: 'playback', title: '播放' }]" :key="item.id" :class="{ active: tab === item.id }" :aria-pressed="tab === item.id" @click="tab = item.id">{{ item.title }}</button>
+      <button v-for="item in [{ id: 'ai', title: '字幕与 AI' }, { id: 'picture', title: '画面与声音' }, { id: 'playback', title: '播放' }, { id: 'app', title: '应用' }]" :key="item.id" :class="{ active: tab === item.id }" :aria-pressed="tab === item.id" @click="tab = item.id">{{ item.title }}</button>
     </nav>
     <div class="settings-content">
       <div v-show="tab === 'ai'">
@@ -50,6 +82,22 @@ onMounted(() => dialog.value?.showModal())
         <section><h3>存储与维护</h3><label>转换缓存 · {{ cacheSize }}<button :disabled="cacheDisabled" @click="emit('clearCache')">清理缓存</button></label></section>
         <section class="shortcuts"><h3>快捷键</h3><p>空格 播放 / 暂停 · ← → 快进 / 后退 · ↑ ↓ 音量</p><p>F 全屏 · V 静音 · P / N 上一个 / 下一个</p><p>[ / ] 字幕同步 · M 精简模式 · Esc 退出精简模式</p><p>⌘ / Ctrl + O 打开音视频 · ⌘ / Ctrl + , 设置</p></section>
       </template>
+      <template v-if="tab === 'app'">
+        <section>
+          <h3>关闭主窗口时</h3>
+          <label>行为
+            <span>
+              <select :value="closeAction" aria-label="关闭主窗口时的行为" @change="changeCloseAction">
+                <option v-for="item in CLOSE_ACTION_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</option>
+              </select>
+              <em v-if="savedHint" class="saved">已保存</em>
+            </span>
+          </label>
+          <p class="note">{{ closeActionHint }}</p>
+          <p class="note dim">这个选择会作为下次的默认行为。选择「每次询问」时，关闭窗口会弹出对话框，勾选「记住我的选择」即可直接存为默认值。</p>
+        </section>
+        <section class="shortcuts"><h3>托盘</h3><p>托管到托盘后，下载模型、识别字幕会继续在后台执行；</p><p>点击 / 双击托盘图标可以重新打开窗口，右键菜单里可直接退出。</p></section>
+      </template>
     </div>
   </dialog>
 </template>
@@ -71,4 +119,7 @@ input[type='range'] { width: 145px; accent-color: var(--accent); }
 input[type='number'] { width: 70px; padding: 7px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 7px; color: var(--text); }
 input[type='checkbox'] { accent-color: var(--accent); }
 .shortcuts p { color: var(--text-dim); font-size: 12px; line-height: 1.6; }
+.note { margin: 8px 0 0; color: var(--text-dim); font-size: 12px; line-height: 1.6; }
+.note.dim { margin-top: 4px; opacity: .72; }
+.saved { color: var(--accent); font-style: normal; font-size: 12px; }
 </style>

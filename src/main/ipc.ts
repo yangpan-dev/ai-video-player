@@ -20,10 +20,18 @@ import {
   getProgress
 } from './services/library'
 import { cacheStats, clearCache, cancelConvert, prepareConversion, probePlayback, releasePlaybackCache } from './services/playbackCache'
+import { checkpointInfo, discardCheckpoint } from './services/checkpoint'
+import { getAppSettings, setCloseAction } from './services/appSettings'
+import type { CloseAction } from '@shared/appSettings'
 import { MEDIA_EXTENSIONS } from '../shared/media'
 
 export function registerIpc(): void {
   let activeAiRequest: string | null = null
+
+  // 应用设置：关闭行为（直接退出 / 托管到托盘 / 每次询问）
+  ipcMain.handle('app:settings:get', () => getAppSettings())
+  ipcMain.handle('app:settings:close-action', (_event, action: CloseAction) => setCloseAction(action))
+
   ipcMain.handle('pipeline:run', (event, videoPath: string, options: RunPipelineOptions) => {
     cancelStreaming()
     activeAiRequest = options.requestId
@@ -64,6 +72,10 @@ export function registerIpc(): void {
     activeAiRequest = null
     cancelStreaming()
   })
+
+  // 未完成的识别进度：界面据此显示「继续识别 N%」
+  ipcMain.handle('transcribe:checkpoint', (_event, videoPath: string) => checkpointInfo(videoPath))
+  ipcMain.handle('transcribe:discard', (_event, videoPath: string) => discardCheckpoint(videoPath))
 
   ipcMain.handle('models:list', () => listModels())
 

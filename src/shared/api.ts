@@ -1,3 +1,4 @@
+import type { AppSettings, CloseAction } from './appSettings'
 import type { MediaProbe } from './media'
 import type {
   AiEvent,
@@ -12,6 +13,7 @@ import type {
   StreamProgress,
   StreamResult,
   SubtitleSegment,
+  TranscribeCheckpointInfo,
   TranscribeResult,
   WhisperModelInfo
 } from './types'
@@ -35,6 +37,11 @@ export interface Api {
   onStreamSegment(cb: (seg: AiEvent<SubtitleSegment>) => void): () => void
   onStreamProgress(cb: (p: AiEvent<StreamProgress>) => void): () => void
   onStreamLog(cb: (line: AiEvent<string>) => void): () => void
+
+  /** 查询某个文件未完成的识别进度（没有则返回 null） */
+  transcribeCheckpoint(videoPath: string): Promise<TranscribeCheckpointInfo | null>
+  /** 丢弃某个文件的识别进度 */
+  discardTranscribeCheckpoint(videoPath: string): Promise<void>
 
   listModels(): Promise<WhisperModelInfo[]>
   downloadModel(name: string): Promise<string>
@@ -72,4 +79,9 @@ export interface Api {
   cancelConvert(releasePlayback?: boolean): Promise<void>
 
   openVideoDialog(): Promise<string | null>
+
+  /** 应用设置（关闭行为等） */
+  getAppSettings(): Promise<AppSettings>
+  /** 设置关闭主窗口时的行为，同时作为下次的默认选项 */
+  setCloseAction(action: CloseAction): Promise<AppSettings>
 }

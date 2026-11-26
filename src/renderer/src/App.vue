@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type {
   Library,
   ModelProgress,
   PipelineProgress,
   StreamProgress,
   SubtitleSegment,
+  TranscribeCheckpointInfo,
   WhisperModelInfo
 } from '@shared/types'
 import { NLLB_LANG } from '@shared/types'
@@ -58,12 +59,54 @@ const minimalMode = ref(false)
 const settingsVisible = ref(false)
 const sidebarVisible = ref(true)
 
-function startSubtitles(): void {
+// 上次未完成的识别进度（断点）：存在时按钮变成「继续识别 N%」
+const resumeInfo = ref<TranscribeCheckpointInfo | null>(null)
+
+/** 秒 -> "12:34" / "1:02:03"，用于提示上次识别到哪 */
+function fmtClock(sec: number): string {
+  const s = Math.max(0, Math.round(sec))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const ss = s % 60
+  return h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+    : `${m}:${String(ss).padStart(2, '0')}`
+}
+
+/** 查询当前文件是否有未完成的识别进度 */
+async function refreshResumeInfo(): Promise<void> {
+  const path = video.value?.sourcePath
+  if (!path) {
+    resumeInfo.value = null
+    return
+  }
+  try {
+    const info = await window.api.transcribeCheckpoint(path)
+    if (video.value?.sourcePath === path) resumeInfo.value = info
+  } catch {
+    /* 忽略 */
+  }
+}
+
+function startSubtitles(resume = false): void {
   if (!models.value.find(m => m.name === selectedModel.value)?.installed || !llmModelReady.value) {
     settingsVisible.value = true
     return
   }
-  void generate()
+  void generate(resume)
+}
+
+/** 丢弃未完成的识别进度，重新从头识别 */
+async function discardResume(): Promise<void> {
+  const path = video.value?.sourcePath
+  if (!path || running.value) return
+  try {
+    await window.api.discardTranscribeCheckpoint(path)
+  } catch {
+    /* 忽略 */
+  }
+  resumeInfo.value = null
+  statusMsg.value = '已清除识别进度'
 }
 
 const pipelineState = ref<PipelineProgress>({ stage: 'idle', message: '', percent: 0 })
@@ -293,6 +336,18 @@ async function afterVideoOpened(path: string, seq: number): Promise<void> {
     if (seq !== openSeq) return
     initialTime.value = time
     if (saved && revision === subtitleRevision) segments.value = saved
+    // 没有已保存的完整字幕时，看看是否有「识别到一半」的断点
+    if (!saved) {
+      const info = await window.api.transcribeCheckpoint(path)
+      if (seq !== openSeq) return
+      if (revision !== subtitleRevision) return
+      resumeInfo.value = info
+      if (info) {
+        statusMsg.value = `上次识别到 ${info.percent}%（${fmtClock(info.processedSec)} / ${fmtClock(info.durationSec)}），可点击「继续识别」接着做`
+      }
+    } else if (revision === subtitleRevision) {
+      resumeInfo.value = null
+    }
   } finally {
     if (seq === openSeq) shouldAutoplay.value = true
   }
@@ -307,6 +362,7 @@ function setVideoFromPath(path: string): void {
   currentVideoTime = 0
   lastSavedTime = -1
   appliedMode.value = 'direct'
+  resumeInfo.value = null
   video.value = { sourcePath: path, path, url: '', needsRemux: true, audioOnly: false }
   resetResults()
   // 每次打开都检查实际流，MP4 也可能需要修复音频或转码。
@@ -382,22 +438,51 @@ async function removePlaylist(path: string): Promise<void> {
   }
 }
 
-async function clearPlaylistList(): Promise<void> {
-  if (!library.value.playlist.length) return
+/** 侧栏当前列表的条目数，决定「清空」按钮是否可用 */
+const currentListCount = computed(() =>
+  sidebarTab.value === 'playlist' ? library.value.playlist.length : library.value.history.length
+)
+/** 待确认清空的列表：第一次点击进入确认态，3 秒内再点才真正清空 */
+const pendingClear = ref<'playlist' | 'history' | null>(null)
+let pendingClearTimer: ReturnType<typeof setTimeout> | null = null
+
+function resetPendingClear(): void {
+  if (pendingClearTimer) {
+    clearTimeout(pendingClearTimer)
+    pendingClearTimer = null
+  }
+  pendingClear.value = null
+}
+
+function requestClearList(): void {
+  if (!currentListCount.value) return
+  if (pendingClear.value === sidebarTab.value) {
+    void doClearList()
+    return
+  }
+  pendingClear.value = sidebarTab.value
+  if (pendingClearTimer) clearTimeout(pendingClearTimer)
+  pendingClearTimer = setTimeout(() => {
+    pendingClear.value = null
+    pendingClearTimer = null
+  }, 3000)
+}
+
+async function doClearList(): Promise<void> {
+  const tab = sidebarTab.value
+  resetPendingClear()
   try {
-    library.value = await window.api.clearPlaylist()
+    library.value = tab === 'playlist'
+      ? await window.api.clearPlaylist()
+      : await window.api.clearHistory()
+    statusMsg.value = tab === 'playlist' ? '已清空播放列表' : '已清空历史记录'
   } catch {
     /* 忽略 */
   }
 }
 
-async function clearHistoryList(): Promise<void> {
-  try {
-    library.value = await window.api.clearHistory()
-  } catch {
-    /* 忽略 */
-  }
-}
+// 切换标签页时，"确认清空" 状态不应带到另一个列表上
+watch(sidebarTab, resetPendingClear)
 
 function fmtBytes(n: number): string {
   if (n < 1024) return n + ' B'
@@ -487,7 +572,7 @@ async function downloadLlm(): Promise<void> {
 }
 
 /** 批量模式：抽整段音频 -> 识别 -> 批量翻译 */
-async function runBatch(): Promise<void> {
+async function runBatch(resume = false): Promise<void> {
   if (!video.value || video.value.needsRemux) return
   running.value = true
   const requestId = activeSubtitleRequest
@@ -495,7 +580,8 @@ async function runBatch(): Promise<void> {
     const res = await window.api.runPipeline(video.value.sourcePath, {
       requestId,
       model: selectedModel.value,
-      language: 'auto'
+      language: 'auto',
+      resume
     })
     if (requestId !== activeSubtitleRequest) return
     detectedLanguage.value = res.detectedLanguage
@@ -523,7 +609,7 @@ async function runBatch(): Promise<void> {
 }
 
 /** 流式模式：边识别边出字幕，逐段翻译 */
-async function runStream(): Promise<void> {
+async function runStream(resume = false): Promise<void> {
   if (!video.value || video.value.needsRemux) return
   running.value = true
   const requestId = activeSubtitleRequest
@@ -531,7 +617,8 @@ async function runStream(): Promise<void> {
     const res = await window.api.startStreaming(video.value.sourcePath, {
       requestId,
       model: selectedModel.value,
-      language: 'auto'
+      language: 'auto',
+      resume
     })
     if (requestId !== activeSubtitleRequest) return
     detectedLanguage.value = res.detectedLanguage || detectedLanguage.value
@@ -549,9 +636,10 @@ async function runStream(): Promise<void> {
   }
 }
 
-async function generate(): Promise<void> {
+async function generate(resume = false): Promise<void> {
   if (!video.value || video.value.needsRemux) return
   stopSubtitleWork()
+  const useResume = resume && !!resumeInfo.value
   const requestId = crypto.randomUUID()
   activeSubtitleRequest = requestId
   error.value = null
@@ -565,19 +653,31 @@ async function generate(): Promise<void> {
     translateTimer = null
   }
   try {
-    if (mode.value === 'stream') await runStream()
-    else await runBatch()
+    if (mode.value === 'stream') await runStream(useResume)
+    else await runBatch(useResume)
   } catch (e) {
     if (requestId !== activeSubtitleRequest) return
     const msg = e instanceof Error ? e.message : String(e)
-    if (msg.includes('已取消')) statusMsg.value = '已取消'
-    else error.value = msg
+    if (msg.includes('已取消')) {
+      statusMsg.value = '已取消识别，进度已保存，下次可点击「继续识别」接着做'
+    } else {
+      error.value = msg
+    }
+  } finally {
+    if (requestId === activeSubtitleRequest) await refreshResumeInfo()
   }
 }
 
 function cancel(): void {
   stopSubtitleWork()
-  statusMsg.value = '字幕任务已取消'
+  statusMsg.value = '已停止识别'
+  // 主进程会在取消后把当前进度写入断点，稍等再查询
+  setTimeout(async () => {
+    await refreshResumeInfo()
+    if (resumeInfo.value) {
+      statusMsg.value = `已停止识别，进度已保存（${resumeInfo.value.percent}%），下次可点「继续识别」`
+    }
+  }, 800)
 }
 
 async function exportSubtitles(): Promise<void> {
@@ -821,12 +921,22 @@ const busy = computed(
       <div class="toolbar-actions">
         <button class="quiet-icon" title="打开音视频（⌘ / Ctrl + O）" aria-label="打开音视频" @click="openDialog"><AppIcon name="folder" /></button>
         <button v-if="running" class="ai-button" @click="cancel">停止生成</button>
-        <button v-else class="ai-button" :disabled="!video || video.needsRemux || translating || !!downloading" @click="startSubtitles"><AppIcon name="captions" />AI 字幕</button>
+        <button
+          v-else-if="resumeInfo"
+          class="ai-button resume"
+          :disabled="!video || video.needsRemux || translating || !!downloading"
+          :title="`继续上次未完成的识别（已识别 ${resumeInfo.segmentCount} 句，约 ${fmtClock(resumeInfo.processedSec)} / ${fmtClock(resumeInfo.durationSec)}）`"
+          @click="startSubtitles(true)"
+        >
+          <AppIcon name="captions" />继续识别 {{ resumeInfo.percent }}%
+        </button>
+        <button v-else class="ai-button" :disabled="!video || video.needsRemux || translating || !!downloading" @click="startSubtitles()"><AppIcon name="captions" />AI 字幕</button>
         <details class="quick-menu">
           <summary class="quiet-icon" title="字幕" aria-label="字幕菜单"><AppIcon name="captions" /></summary>
           <div class="menu-items" @click="($event.target as HTMLElement).closest('button') && ($event.currentTarget as HTMLElement).closest('details')?.removeAttribute('open')">
             <button :disabled="!video" @click="importSubtitles()">导入字幕…</button>
             <button :disabled="!hasSegments || running || translating" @click="exportSubtitles">导出字幕…</button>
+            <button v-if="resumeInfo" :disabled="running" @click="discardResume">清除识别进度（重新开始）</button>
             <button @click="settingsVisible = true">字幕设置…</button>
           </div>
         </details>
@@ -854,6 +964,16 @@ const busy = computed(
 
           <div class="library-tools">
             <input v-model="librarySearch" type="search" placeholder="搜索音视频…" aria-label="搜索音视频" />
+            <button
+              class="library-clear"
+              :class="{ confirming: pendingClear === sidebarTab }"
+              :disabled="!currentListCount"
+              :title="sidebarTab === 'playlist' ? '清空播放列表（不删除文件）' : '清空历史记录（同时清除这些文件的观看进度）'"
+              :aria-label="sidebarTab === 'playlist' ? '清空播放列表' : '清空历史记录'"
+              @click="requestClearList"
+            >
+              {{ pendingClear === sidebarTab ? '确认清空？' : '清空' }}
+            </button>
           </div>
           <div class="library-add">
             <details class="quick-menu">
@@ -861,8 +981,6 @@ const busy = computed(
               <div class="menu-items" @click="($event.target as HTMLElement).closest('button') && ($event.currentTarget as HTMLElement).closest('details')?.removeAttribute('open')">
                 <button @click="addFiles">添加音视频文件…</button>
                 <button @click="addFolder">添加文件夹（含子文件夹）…</button>
-                <button v-if="sidebarTab === 'playlist'" :disabled="!library.playlist.length" @click="clearPlaylistList">清空播放列表</button>
-                <button v-else :disabled="!library.history.length" @click="clearHistoryList">清空历史记录</button>
               </div>
             </details>
           </div>
@@ -1018,16 +1136,28 @@ const busy = computed(
 .current-title { flex: 1; min-width: 0; font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 12px; }
 .toolbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .ai-button { display: flex; align-items: center; gap: 7px; background: #4f8cff15; color: var(--accent); border: 0; font-size: 12px; }
+.ai-button.resume { background: #ffb0201a; color: #ffc45c; }
 .library-add { padding: 0 12px 12px; }
 .library-add summary { justify-content: center; padding: 9px; background: #ffffff06; border-radius: 8px; color: var(--text-dim); font-size: 12px; }
 .library-add .menu-items { left: 0; right: auto; }
 
-.library-tools { padding: 10px 12px; display: grid; gap: 8px; }
+.library-tools { padding: 10px 12px; display: flex; align-items: center; gap: 6px; }
 .library-tools > input {
-  min-width: 0; width: 100%; padding: 8px 10px; color: var(--text);
+  flex: 1; min-width: 0; width: 100%; padding: 8px 10px; color: var(--text);
   background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; outline: none;
 }
 .library-tools > input:focus { border-color: var(--accent); }
+.library-clear {
+  flex-shrink: 0; min-width: 78px; padding: 8px 8px; font-size: 12px; white-space: nowrap; text-align: center;
+  color: var(--text-dim); background: transparent; border: 1px solid var(--border); border-radius: 8px;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.library-clear:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); }
+.library-clear:disabled { opacity: .4; cursor: default; }
+.library-clear.confirming {
+  color: var(--danger); border-color: var(--danger); font-weight: 600;
+  background: #ff5c6c1f;
+}
 .sort-option { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); }
 .sort-option input { width: auto; }
 .app {

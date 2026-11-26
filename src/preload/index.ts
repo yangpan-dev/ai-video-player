@@ -20,6 +20,9 @@ const api: Api = {
   onStreamProgress: (cb) => subscribe('stream:progress', cb),
   onStreamLog: (cb) => subscribe('stream:log', cb),
 
+  transcribeCheckpoint: (videoPath) => ipcRenderer.invoke('transcribe:checkpoint', videoPath),
+  discardTranscribeCheckpoint: (videoPath) => ipcRenderer.invoke('transcribe:discard', videoPath),
+
   listModels: () => ipcRenderer.invoke('models:list'),
   downloadModel: (name) => ipcRenderer.invoke('models:download', name),
   onModelProgress: (cb) => subscribe('models:progress', cb),
@@ -55,7 +58,10 @@ const api: Api = {
   clearCache: () => ipcRenderer.invoke('cache:clear'),
   cancelConvert: (releasePlayback) => ipcRenderer.invoke('media:convert-cancel', releasePlayback),
 
-  openVideoDialog: () => ipcRenderer.invoke('dialog:openVideo')
+  openVideoDialog: () => ipcRenderer.invoke('dialog:openVideo'),
+
+  getAppSettings: () => ipcRenderer.invoke('app:settings:get'),
+  setCloseAction: (action) => ipcRenderer.invoke('app:settings:close-action', action)
 }
 
 contextBridge.exposeInMainWorld('api', api)

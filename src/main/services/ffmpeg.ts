@@ -100,8 +100,101 @@ export function extractAudio(
   })
 }
 
-/** 明确选择默认音视频流，排除封面、附件、字幕和数据流。 */
-export function conversionArgs(
+export interface SilenceInterval {
+  start: number
+  end: number
+}
+
+/**
+ * 找出音频中的静音段（句子之间的停顿）。
+ * 识别分片需要切在静音处：切在句子中间会让 whisper 在截断处重复/编造文本。
+ * 探测失败时返回空数组，调用方退回按固定时长切分。
+ */
+export function detectSilences(wavPath: string, signal?: AbortSignal): Promise<SilenceInterval[]> {
+  return new Promise((resolve) => {
+    const intervals: SilenceInterval[] = []
+    let pending = ''
+    let current: number | null = null
+    let done = false
+    const finish = (): void => {
+      if (done) return
+      done = true
+      resolve(intervals)
+    }
+    let proc: ReturnType<typeof spawn>
+    try {
+      proc = spawn(
+        resolveFfmpeg(),
+        ['-hide_banner', '-nostdin', '-i', wavPath, '-af', 'silencedetect=noise=-40dB:d=0.25', '-f', 'null', '-'],
+        { windowsHide: true }
+      )
+    } catch {
+      return finish()
+    }
+    const abort = (): void => {
+      proc.kill()
+    }
+    signal?.addEventListener('abort', abort, { once: true })
+    proc.stderr?.on('data', (d: Buffer) => {
+      const lines = (pending + d.toString()).split(/\r?\n/)
+      pending = lines.pop() ?? ''
+      for (const line of lines) {
+        const sm = /silence_start:\s*(-?\d+(?:\.\d+)?)/.exec(line)
+        if (sm) current = Math.max(0, Number(sm[1]))
+        const em = /silence_end:\s*(-?\d+(?:\.\d+)?)/.exec(line)
+        if (em) {
+          const end = Number(em[1])
+          if (current != null && end > current) intervals.push({ start: current, end })
+          current = null
+        }
+      }
+    })
+    proc.on('error', () => finish())
+    proc.on('close', () => {
+      // 文件以静音结尾时只有 silence_start，补到无穷大由调用方裁剪
+      if (current != null) intervals.push({ start: current, end: Number.POSITIVE_INFINITY })
+      signal?.removeEventListener('abort', abort)
+      finish()
+    })
+  })
+}
+
+/** 从 PCM WAV 中切出一段（-c copy，采样级精确），用于分片识别 */
+export function cutAudio(
+  wavPath: string,
+  outPath: string,
+  startSec: number,
+  durationSec: number,
+  signal?: AbortSignal
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new Error('已取消'))
+    const proc = spawn(resolveFfmpeg(), [
+      '-y',
+      '-hide_banner',
+      '-nostdin',
+      '-ss',
+      Math.max(0, startSec).toFixed(3),
+      '-t',
+      Math.max(0.1, durationSec).toFixed(3),
+      '-i',
+      wavPath,
+      '-c',
+      'copy',
+      outPath
+    ], { windowsHide: true })
+    let tail = ''
+    proc.stderr.on('data', (d: Buffer) => { tail = (tail + d.toString()).slice(-2000) })
+    proc.on('error', (err) => reject(new Error(`无法启动 ffmpeg：${err.message}`)))
+    proc.on('close', (code) => {
+      if (signal?.aborted) reject(new Error('已取消'))
+      else if (code === 0) resolve()
+      else reject(new Error(`切分音频失败（退出码 ${code}）：${tail.trim().slice(-500)}`))
+    })
+  })
+}
+
+/** 明确选择默认音视频流，排除封面、附件、字幕和数据流。 */export function conversionArgs(
   videoPath: string, outPath: string, mode: ConversionMode, probe: MediaProbe
 ): string[] {
   const args = ['-nostdin', '-y', '-hide_banner', '-i', videoPath]

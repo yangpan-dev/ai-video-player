@@ -79,8 +79,10 @@ export function addToHistory(path: string, title: string): Library {
   return lib
 }
 
+/** 清空历史记录：观看进度属于历史的一部分，一并清除，避免重新加入后跳回旧位置 */
 export function clearHistory(): Library {
   const lib = load()
+  for (const entry of lib.history) delete lib.progress[entry.path]
   lib.history = []
   save(lib)
   return lib
