@@ -39,7 +39,15 @@ if (!existsSync(join(cacheDir, 'CMakeLists.txt'))) {
 }
 
 // 2. cmake 配置
-const configureArgs = ['-B', 'build', '-DCMAKE_BUILD_TYPE=Release']
+// 同 build-whisper：关闭 GGML_NATIVE / AVX512，避免把编译机指令集固化进二进制，
+// 导致在不支持 AVX-512 的 CPU（Intel 12 代及以后消费级）上 0xC000001D 崩溃。
+const configureArgs = [
+  '-B',
+  'build',
+  '-DCMAKE_BUILD_TYPE=Release',
+  '-DGGML_NATIVE=OFF',
+  '-DGGML_AVX512=OFF'
+]
 if (platform === 'darwin') {
   configureArgs.push('-DGGML_METAL=ON')
 }

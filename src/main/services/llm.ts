@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
 import { getModelsDir, resolveLlamaServerBinary } from './paths'
+import { explainExitCode } from './exitCode'
 import { parseTranslations, translationSchema, type TranslationLine } from '@shared/translationQuality'
 
 const LLM_MODEL_FILE = 'Qwen2.5-7B-Instruct-Q4_K_M.gguf'
@@ -76,7 +77,7 @@ export class LlmServer {
     while (Date.now() < deadline) {
       if (this.stopped) throw new Error('已取消')
       if (this.proc && this.proc.exitCode !== null) {
-        throw new Error(`llama-server 启动失败（退出码 ${this.proc.exitCode}）`)
+        throw new Error(`llama-server 启动失败（${explainExitCode(this.proc.exitCode)}）`)
       }
       try {
         const res = await fetch(`http://127.0.0.1:${this.port}/health`)

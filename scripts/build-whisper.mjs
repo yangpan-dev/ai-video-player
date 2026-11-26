@@ -43,7 +43,17 @@ if (!existsSync(join(cacheDir, 'CMakeLists.txt'))) {
 }
 
 // 2. cmake 配置（保留 examples 以编译 whisper-cli）
-const configureArgs = ['-B', 'build', '-DCMAKE_BUILD_TYPE=Release']
+// 注意：必须关闭 GGML_NATIVE。否则会用 -march=native 把「编译机」的指令集
+// （如 AVX-512）固化进二进制，发布到不支持 AVX-512 的 CPU（Intel 12 代及以后的
+// 消费级 CPU 已熔断 AVX-512）上运行会以 0xC000001D（STATUS_ILLEGAL_INSTRUCTION）
+// 崩溃。GGML_NATIVE=OFF 时会使用基线指令集，并由 ggml 运行时按 CPU 能力分发内核。
+const configureArgs = [
+  '-B',
+  'build',
+  '-DCMAKE_BUILD_TYPE=Release',
+  '-DGGML_NATIVE=OFF',
+  '-DGGML_AVX512=OFF'
+]
 if (platform === 'darwin') {
   configureArgs.push('-DGGML_METAL=ON')
 }

@@ -61,7 +61,12 @@ writeFileSync(
   ].join('\n')
 )
 
-const commonCmake = ['-DCMAKE_TOOLCHAIN_FILE=' + toolchain, '-DCMAKE_BUILD_TYPE=Release', '-DGGML_NATIVE=OFF']
+const commonCmake = [
+  '-DCMAKE_TOOLCHAIN_FILE=' + toolchain,
+  '-DCMAKE_BUILD_TYPE=Release',
+  '-DGGML_NATIVE=OFF',
+  '-DGGML_AVX512=OFF'
+]
 
 // 3. 交叉编译 whisper.cpp
 const whisperSrc = join(cacheDir, 'whisper.cpp')

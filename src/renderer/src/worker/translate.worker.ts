@@ -5,8 +5,11 @@ import { pipeline, env } from '@huggingface/transformers'
 env.backends.onnx.wasm!.numThreads = 1
 env.backends.onnx.wasm!.proxy = false
 
-// 国内网络访问 huggingface.co 经常失败，改用镜像（路径完全一致）
-env.remoteHost = 'https://hf-mirror.com'
+// 国内网络访问 huggingface.co 经常失败，改用国内镜像（路径完全一致）。
+// 可用 VITE_HF_ENDPOINT 覆盖，例如 VITE_HF_ENDPOINT=https://aifasthub.com
+const viteEnv = (import.meta as unknown as { env?: Record<string, string> }).env
+const customHost = viteEnv?.VITE_HF_ENDPOINT?.trim().replace(/\/+$/, '')
+env.remoteHost = customHost || 'https://hf-mirror.com'
 
 const MODEL = 'Xenova/nllb-200-distilled-600M'
 

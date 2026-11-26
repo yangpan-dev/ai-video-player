@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createServer } from 'node:net'
 import { resolveWhisperServerBinary } from './paths'
+import { explainExitCode } from './exitCode'
 
 export interface ServerSegment {
   start: number
@@ -84,7 +85,7 @@ export class WhisperServer {
     while (Date.now() < deadline) {
       if (this.stopped) throw new Error('已取消')
       if (this.proc && this.proc.exitCode !== null) {
-        throw new Error(`whisper-server 启动失败（退出码 ${this.proc.exitCode}）`)
+        throw new Error(`whisper-server 启动失败（${explainExitCode(this.proc.exitCode)}）`)
       }
       try {
         const res = await fetch(`http://127.0.0.1:${this.port}/health`)
