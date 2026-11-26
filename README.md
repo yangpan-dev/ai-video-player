@@ -16,12 +16,12 @@ macOS 原生播放器现已建立独立工程：[熊猫播放器原生版（Swif
 
 ## 📦 下载安装（已打包程序，无需编译）
 
-音频播放更新：[GitHub Releases v0.3.4](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.3.4)，更新说明见 [v0.3.4](releases/v0.3.4.md)。提供原生 macOS、Vue / Electron macOS 和 Windows x64 安装包。
+识别续做与托盘托管更新：[GitHub Releases v0.3.5](https://github.com/yangpan-dev/ai-video-player/releases/tag/v0.3.5)，更新说明见 [v0.3.5](releases/v0.3.5.md)。Vue / Electron macOS 版已更新到 0.3.5；原生 macOS 与 Windows 安装包本轮未重编，仍为 v0.3.4。
 
 | 版本 | 安装包 |
 | --- | --- |
 | macOS 原生版（Apple Silicon，macOS 26+） | [DMG](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.4/PandaPlayer-0.3.4-arm64-mac.dmg) · [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.4/PandaPlayer-0.3.4-arm64-mac.zip) |
-| macOS Vue / Electron 版（Apple Silicon，完整 AI 引擎需 macOS 26+） | [ZIP](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.4/PandaPlayer-Electron-0.3.4-arm64-mac.zip) |
+| macOS Vue / Electron 版（Apple Silicon，完整 AI 引擎需 macOS 26+） | [DMG](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.5/PandaPlayer-Electron-0.3.5-arm64.dmg) |
 | Windows Vue / Electron 版（x64） | [安装程序](https://github.com/yangpan-dev/ai-video-player/releases/download/v0.3.4/PandaPlayer.Setup.0.3.4.exe) |
 
 两版均显示「熊猫播放器」，分别使用独立设计的图标：原生版为蓝紫立体熊猫，Vue 版为青绿几何熊猫；两者均含 AI 神经节点、视频屏幕及播放三角。主界面保留视频、列表、播放控制和 AI 字幕入口；亮度、精简播放和全屏位于同一排控制栏。模型管理、识别模式、字幕字号 / 位置 / 时间偏移、自动下一集和缓存清理统一放到设置（`⌘ / Ctrl + ,`）。旧版模型、列表和观看进度保留原路径，升级无需重新下载模型。

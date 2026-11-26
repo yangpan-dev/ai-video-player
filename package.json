@@ -1,6 +1,6 @@
 {
   "name": "local-ai-video-player",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "熊猫播放器：本地音视频播放与 AI 双语字幕",
   "main": "./out/main/index.js",
   "author": "",
