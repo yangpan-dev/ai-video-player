@@ -70,7 +70,7 @@ macOS 原生播放器现已建立独立工程：[熊猫播放器原生版（Swif
 | 播放 & 字幕渲染 | HTML5 `<video>` + 自定义字幕叠加层 |
 | 进程通信 | Electron IPC（contextBridge） |
 | 音频抽取 / 转码 | FFmpeg（`ffmpeg-static`） |
-| 语音识别 | [whisper.cpp](https://github.com/ggerganov/whisper.cpp)：整片用 `whisper-cli`（`-oj` JSON），流式用 `whisper-server`（HTTP `/inference`，模型常驻） |
+| 语音识别 | [whisper.cpp](https://github.com/ggerganov/whisper.cpp)：整片用 `whisper-cli`（`-oj` JSON，按静音处切片），流式用 `whisper-server`（HTTP `/inference`，模型常驻） |
 | 流式 VAD | 自研轻量能量 VAD（纯 JS，`vad.ts`），可按需换成 Silero VAD |
 | 翻译 | **Qwen2.5-7B-Instruct**（本地 LLM，[llama.cpp](https://github.com/ggml-org/llama.cpp) `llama-server`，OpenAI 兼容接口，上下文感知、口语化） |
 
@@ -84,13 +84,14 @@ src/
 │   └── services/
 │       ├── paths.ts       # 二进制/模型/临时目录解析
 │       ├── ffmpeg.ts      # 抽音频 + 无损转 MP4
-│       ├── whisper.ts     # whisper-cli 整片识别 + JSON 解析
+│       ├── whisper.ts     # whisper-cli 识别 + JSON 解析（支持时间偏移）
 │       ├── whisperServer.ts # whisper-server 进程管理（流式逐段）
 │       ├── streaming.ts   # 流式：ffmpeg PCM 流 → VAD → 逐段识别
 │       ├── vad.ts         # 能量 VAD 分段器（纯 JS）
 │       ├── models.ts      # whisper 模型下载/管理
 │       ├── subtitle.ts    # SRT / WebVTT 生成
-│       └── pipeline.ts    # 整片：抽音频 → 识别 编排
+│       ├── checkpoint.ts  # 识别断点（中断后续做）
+│       └── pipeline.ts    # 整片：抽音频 → 静音处切片 → 逐片识别（带断点）
 ├── preload/               # contextBridge 桥接（window.api）
 ├── shared/                # 主/渲染进程共享类型与常量
 └── renderer/
@@ -165,6 +166,7 @@ pnpm dev
 - 快捷键：空格播放／暂停，← → 跳转 5 秒，Shift + ← → 跳转 30 秒，↑ ↓ 音量，F 全屏，V 静音，P / N 上下集，⌘ / Ctrl + O 打开视频，[ / ] 调整字幕时间，M 精简模式。
 - 全屏时自动隐藏鼠标；移动鼠标后立即显示，静止 2.6 秒再次隐藏，退出全屏恢复正常显示。
 - 切换视频自动取消旧字幕任务，取消后的结果不会写入新视频；识别临时音频在任务结束后清理。
+- **识别可以中断续做**：识别过程中点「停止生成」或直接关闭应用，已识别的部分会写入断点（批量模式每片、流式模式每约 48 秒落一次盘）。下次打开同一个文件，右上角按钮会变成「继续识别 N%」，点一下从断点接着识别，已完成的句子不会重跑、也不会丢。想从头来过，用字幕菜单里的「清除识别进度（重新开始）」；源文件被修改（重新下载 / 剪辑）后断点会自动失效。
 
 ## 视频格式兼容
 
@@ -203,8 +205,23 @@ npm run test:playback    # 构建后启动独立测试配置的 Electron，验�
 pnpm run build:mac         # macOS dmg（需开发者证书才会签名；无证书则跳过）
 pnpm run build:mac:adhoc   # macOS .app + ad-hoc 签名（免费，本机可用）
 pnpm run build:mac:release # macOS arm64 ZIP，签名后归档，可用于 Releases
+pnpm run build:mac:all     # 一条命令：编译引擎 → 构建 → 签名 → 归档 → 出校验和
 pnpm run build:win         # Windows nsis
 ```
+
+### macOS 安装包
+
+macOS 包**只能在 macOS（Apple Silicon）上构建**。`electron-builder --mac` 在 Windows / Linux 上会直接报 `Build for macOS is supported only on macOS`：DMG 依赖 `hdiutil`，签名依赖 `codesign`，引擎依赖 `otool` / `install_name_tool`，AI 二进制也必须是 Mach-O。
+
+前置：Xcode Command Line Tools（`xcode-select --install`）、CMake（`brew install cmake`）、Node 22.12+、pnpm 10.26+。
+
+```bash
+pnpm run build:mac:all   # 一条命令跑完全流程
+```
+
+该脚本会依次检查工具链、安装依赖、编译 whisper.cpp / llama.cpp 到 `resources/bin/darwin-arm64/`、构建 `.app`、ad-hoc 签名并归档 `dist/PandaPlayer-Electron-<版本>-arm64-mac.zip`，最后输出 `dist/SHA256SUMS.txt`。
+
+没有 Mac 时用 CI：推一个 `v*` 标签，或在 GitHub Actions 里手动运行 `Build Installers` 并选择 `macos`，`.dmg` / `.zip` 会作为 Artifact 产出（见 `.github/workflows/build.yml`）。
 
 ### Windows 安装包
 
@@ -262,7 +279,14 @@ node scripts/build-win-cross.mjs   # 交叉编译 whisper.cpp + llama.cpp
 ## 常见问题
 
 - **提示找不到 whisper 二进制**：先运行 `pnpm run build:whisper`。
+- **启动识别时报退出码 `3221225501` / `-1073741795` / `0xC000001D`（STATUS_ILLEGAL_INSTRUCTION）**：AI 引擎二进制使用了当前 CPU 不支持的指令集，最常见是 **AVX-512**——Intel 第 12 代及以后的消费级 CPU（如 i5-13400F）已禁用 AVX-512。日志通常停在 `whisper_model_load` 打印完 `vocab = ...`、`whisper_backend_init_gpu: device 0: CPU` 之后。用 `GGML_NATIVE=OFF`（并显式 `GGML_AVX512=OFF`）重新编译引擎即可；仓库中的 `build:whisper` / `build:llama` 已默认加上这两个参数。已安装的发布版本遇到此问题，需替换 `resources/bin/win32-x64/` 下的引擎二进制，或设置 `WHISPER_SERVER_BIN` / `LLAMA_SERVER_BIN` 指向兼容的构建。
 - **提示模型未下载**：运行 `pnpm run download:model medium` 或在界面点击「下载模型」。
-- **下载模型报 `fetch failed`**：国内访问 huggingface.co 经常超时，本项目已默认走镜像 `hf-mirror.com`（路径与官方一致），并自动回退官方站；也可自行设置 `HF_ENDPOINT=https://hf-mirror.com`。
+- **下载模型报 `fetch failed` / 下载中途自动暂停**：国内访问 huggingface.co 经常超时或限速。本项目已默认使用**多源轮换**：`hf-mirror.com` → `aifasthub.com` → 官方站（路径与官方完全一致），某个源失败或连续 20 秒无数据会自动断开并切换源重试，且从 `.part` 断点续传、保留进度百分比。也可自行指定源（逗号分隔多个）：
+  ```bash
+  pnpm dev   # 默认多源
+  HF_ENDPOINT=https://aifasthub.com,https://hf-mirror.com pnpm dev
+  HF_ENDPOINT=https://hf-mirror.com pnpm run download:model medium
+  ```
+  Windows（PowerShell）临时设置：`$env:HF_ENDPOINT="https://aifasthub.com,https://hf-mirror.com"`。翻译 worker 使用 `VITE_HF_ENDPOINT` 覆盖（默认 `hf-mirror.com`）。
 - **翻译模型首次加载慢**：NLLB 首次从 HuggingFace 下载（已走镜像），之后缓存到本地，离线可用。
 - **ONNX WASM 需要联网**：当前 `onnxruntime-web` 的 `.wasm` 默认从 CDN 加载；如需完全离线，请把 `node_modules/onnxruntime-web/dist/*.wasm` 复制到本地并通过 `env.backends.onnx.wasm.wasmPaths` 指定（见 `translate.worker.ts`）。

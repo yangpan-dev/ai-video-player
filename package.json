@@ -16,14 +16,15 @@
     "test:media": "node --test tests/media.test.cjs",
     "test": "node --test tests/media.test.cjs tests/player.test.cjs",
     "test:playback": "npm run build && node tests/run-playback.cjs",
-    "build:win": "node scripts/prepare-win-resources.mjs && electron-vite build && electron-builder --win --x64 --publish never",
+    "build:win": "node scripts/prepare-win-resources.mjs && electron-vite build && electron-builder --win --x64 --publish never -c.electronDist=node_modules/electron/dist",
     "build:mac": "node scripts/prepare-mac-resources.mjs && electron-vite build && electron-builder --mac",
     "build:mac:adhoc": "node scripts/prepare-mac-resources.mjs && electron-vite build && electron-builder --mac --dir && node scripts/adhoc-sign.mjs",
     "build:mac:release": "node scripts/prepare-mac-resources.mjs && electron-vite build && electron-builder --mac --arm64 --dir -c.electronDist=node_modules/electron/dist --publish never && node scripts/adhoc-sign.mjs && node scripts/archive-mac.mjs",
     "build:whisper": "node scripts/build-whisper.mjs",
     "build:llama": "node scripts/build-llama.mjs",
     "download:model": "node scripts/download-model.mjs",
-    "download:llm": "node scripts/download-llm.mjs"
+    "download:llm": "node scripts/download-llm.mjs",
+    "build:mac:all": "bash scripts/build-mac.sh"
   },
   "dependencies": {
     "ffmpeg-static": "^5.2.0"

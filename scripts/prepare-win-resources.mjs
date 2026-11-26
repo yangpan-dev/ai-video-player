@@ -44,14 +44,19 @@ const sslNames = ['libssl-3-x64.dll', 'libcrypto-3-x64.dll']
 const sslRoots = [process.env.OPENSSL_ROOT_DIR, process.env.OPENSSL_DIR,
   join(programFiles, 'OpenSSL'), join(programFiles, 'OpenSSL-Win64')].filter(Boolean)
 const ssl = sslRoots.find(dir => sslNames.every(name => existsSync(join(dir, 'bin', name))))
-if (!ssl) throw new Error('缺少 OpenSSL x64 运行库，请安装与 llama-server 编译时一致的 OpenSSL 3。')
-for (const name of sslNames) {
-  copyFileSync(join(ssl, 'bin', name), join(bin, name))
-  copied++
+// 已经放在 bin 里的 OpenSSL 运行库允许直接复用（例如从旧包/缓存拷过来的场景）
+if (!ssl && !sslNames.every(name => existsSync(join(bin, name)))) {
+  throw new Error('缺少 OpenSSL x64 运行库，请安装与 llama-server 编译时一致的 OpenSSL 3，或用 OPENSSL_DIR 指向含 bin/libssl-3-x64.dll 的目录。')
+}
+if (ssl) {
+  for (const name of sslNames) {
+    copyFileSync(join(ssl, 'bin', name), join(bin, name))
+    copied++
+  }
 }
 const licenses = join(bin, 'licenses')
 mkdirSync(licenses, { recursive: true })
-const sslLicense = ['LICENSE.txt', 'LICENSE', 'LICENSE.md'].map(name => join(ssl, name)).find(existsSync)
+const sslLicense = ssl ? ['LICENSE.txt', 'LICENSE', 'LICENSE.md'].map(name => join(ssl, name)).find(existsSync) : undefined
 copyFileSync(sslLicense || join(root, 'build', 'licenses', 'OpenSSL.txt'), join(licenses, 'OpenSSL.txt'))
 
 const systemRoot = process.env.SystemRoot || 'C:\\Windows'

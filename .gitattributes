@@ -1,0 +1,4 @@
+# 统一换行：脚本必须是 LF，否则在 macOS / Linux 上无法执行
+*.sh text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
